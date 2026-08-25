@@ -1,0 +1,35 @@
+# --- Datos: NUNCA se versionan ---------------------------------------------
+# El historial transaccional de una cadena de farmacias revela condiciones de
+# salud. Aunque los identificadores esten seudonimizados, el detalle de compra
+# es reidentificable por cruce y queda cubierto por la LOPDP. Estos archivos se
+# quedan siempre en la maquina de trabajo.
+Datos/
+data/
+*.csv
+*.parquet
+
+# Artefactos de modelo: contienen IDs de cliente y su probabilidad de fuga.
+*.pkl
+*.joblib
+
+# --- Entorno ----------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+.duckdb_tmp/
+build/
+
+# --- Credenciales -----------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+credentials
+
+# --- Presentaciones (material pesado del curso) -----------------------------
+Presentaciones/*.pdf
+
+# --- Sistema ----------------------------------------------------------------
+desktop.ini
+.DS_Store
+.ipynb_checkpoints/

@@ -1,0 +1,11 @@
+duckdb
+pyarrow
+pandas
+scikit-learn
+mesa
+fastapi
+uvicorn[standard]
+boto3
+python-dotenv
+matplotlib
+networkx
