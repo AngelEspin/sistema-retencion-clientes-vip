@@ -51,23 +51,37 @@ El desplome a cero en la tercera promoción es el argumento de la tesis, cuantif
 ## Arquitectura
 
 ```
-CSV crudo (22 GB)
-      │  DuckDB en streaming, proyección 40 → 11 columnas
-      ▼
-Parquet particionado (marca, mes) — 1.25 GB, compresión 17.8×
-      │
-      ├─► Tabla de tickets (39.1M)  ──► RFM  ──► segmento VIP
-      │                                   │
-      │                                   ▼
-      │                         Modelo de abandono
-      │                    (validación temporal, AUC 0.87)
-      │                                   │
-      │                                   ▼
-      └────────────────────────► Simulador multiagente
-                                          │
-                                          ▼
-                                  API de escenarios
-                              (FastAPI local / AWS Lambda)
+                          ┌────────────────────────────── LOCAL ──────────────────────────────┐
+                          │                                                                   │
+CSV crudo (22 GB)                                                                             │
+      │  DuckDB en streaming, proyección 40 → 11 columnas                                     │
+      ▼                                                                                       │
+Parquet particionado (marca, mes) — 1.25 GB, compresión 17.8×                                  │
+      │                                                                                       │
+      ├─► Tabla de tickets (39.1M) ──► RFM ──► segmento VIP ─────────────┐                    │
+      │                                      │                            │                    │
+      │                                      ▼                            │                    │
+      │                            Modelo de abandono                     │                    │
+      │                       (validación temporal, AUC 0.87)             │                    │
+      │                                      │                            │                    │
+      │                                      ▼                            ▼                    │
+      └─────────────────────────────► Simulador multiagente ─────► FastAPI local (dashboard)   │
+                                  (538,983 agentes VIP)            · / → dashboard interactivo │
+                                      │                            · respuestas 1–3 s          │
+                                      └──► serializa scores       · poblacion cacheada        │
+                                              ▼                                                 │
+                                     ┌──────────────────────── ──┐                             │
+                                     │    AWS Serverless (S3/Lambda)                            │
+                                     │  mismos artefactos + código│  ───────────────────────────┘
+                                     │  coste cero en reposo     │
+                                     └───────────────────────────┘
+```
+
+Una vista gráfica (diagrama de flujo con métricas, algoritmo de saturación y
+ambas vías de consumo) está en **`diagrama_arquitectura.pdf`**, regenerable con:
+
+```bash
+./.venv/Scripts/python generar_diagrama.py     # añade --abrir para abrirlo
 ```
 
 ## Estructura
@@ -77,8 +91,11 @@ src/ingest/csv_to_parquet.py    Ingesta en streaming a Parquet particionado
 src/features/rfm.py             Segmentación RFM y definición del segmento VIP
 src/models/churn.py             Modelo de abandono con validación temporal
 src/simulation/simulador.py     Simulador multiagente con saturación
-src/api/main.py                 API de escenarios (FastAPI)
+src/api/main.py                 API de escenarios (FastAPI) + endpoints de visibilidad
+src/api/dashboard.html          Dashboard web interactivo servido en la raíz
 infra/lambda_handler.py         Versión serverless para AWS Lambda
+descargar_datos.py              Descarga del dataset desde Google Drive (OAuth2)
+generar_diagrama.py             Genera el PDF gráfico de arquitectura
 PROGRESO.md                     Registro de implementación, decisiones y problemas
 ```
 
@@ -88,6 +105,7 @@ PROGRESO.md                     Registro de implementación, decisiones y proble
 python -m venv .venv
 ./.venv/Scripts/python -m pip install -r requirements.txt
 
+./.venv/Scripts/python descargar_datos.py              # (1ª vez) desde Google Drive
 ./.venv/Scripts/python src/ingest/csv_to_parquet.py    # ~2 min sobre 22 GB
 ./.venv/Scripts/python src/features/rfm.py
 ./.venv/Scripts/python src/models/churn.py
@@ -95,6 +113,30 @@ python -m venv .venv
 
 cd src && ../.venv/Scripts/python -m uvicorn api.main:app --port 8080
 ```
+
+## Datos desde Google Drive
+
+El dataset original ya no está en la carpeta local; vive en una carpeta privada de
+Google Drive. Para descargarlo:
+
+1. **Crea las credenciales OAuth 2.0** (una sola vez):
+   - Entra a [console.cloud.google.com](https://console.cloud.google.com)
+   - Crea un proyecto (o usa uno existente).
+   - Habilita la **Google Drive API**.
+   - Ve a **APIs & Services → Credentials → Create Credentials → OAuth Client ID**.
+   - Tipo: **Desktop app**. Guarda el JSON descargado como `credentials.json`
+     en la raíz del proyecto.
+2. **Ejecuta la descarga** (se abrirá el navegador para iniciar sesión en Google):
+
+   ```bash
+   ./.venv/Scripts/python descargar_datos.py
+   ```
+
+   La primera vez pedirá permisos de tu cuenta; luego guarda el token en
+   `token.json` y no vuelve a pedirlos hasta que caduque.
+
+3. Si la carpeta `Datos/` ya está completa, la descarga se omite automáticamente.
+   Usa `--forzar` para forzarla o `--verificar` para revisar el estado.
 
 ## Sobre los datos
 

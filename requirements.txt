@@ -9,3 +9,7 @@ boto3
 python-dotenv
 matplotlib
 networkx
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

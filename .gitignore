@@ -26,6 +26,11 @@ build/
 *.pem
 credentials
 
+# Credenciales y tokens de Google Drive (OAuth2 del script descargar_datos.py).
+credentials.json
+token.json
+client_secret*.json
+
 # --- Presentaciones (material pesado del curso) -----------------------------
 Presentaciones/*.pdf
 
