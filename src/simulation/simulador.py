@@ -283,6 +283,77 @@ def simular(escenario: Escenario, poblacion: pd.DataFrame) -> ResultadoSimulacio
     return ModeloRetencion(poblacion, escenario).ejecutar()
 
 
+def desglose_por_cohorte(
+    escenario: Escenario, poblacion: pd.DataFrame
+) -> dict[str, Any]:
+    """Devuelve como se comporta cada cohorte de riesgo bajo el escenario.
+
+    Permite "ver" a los agentes trabajando: el simulador resuelve la poblacion
+    de forma vectorizada (por eso tarda segundos), pero este desglose muestra
+    por decil de riesgo cuantos agentes hay, cuantos reciben promo, cuantos se
+    saturan, cuantos se fugan en control vs tratamiento y cuantos se salvan.
+    El dashboard lo presenta como el proceso vivo que el modelo realiza.
+    """
+    model = ModeloRetencion(poblacion, escenario)
+    esc = model.escenario
+    n = len(model.ids)
+
+    # Replicar la logica de ejecutar() de forma no destructiva para poder
+    # observar cohortes sin depender del estado acumulado.
+    model.asignar_promociones()
+    reduccion = np.array(
+        [efecto_acumulado(int(p), r) for p, r in zip(model.promos, model.receptividad)]
+    )
+    prob_tratamiento = model.prob_fuga * (1.0 - reduccion)
+    sorteo = model.rng.random(n)
+    fuga_control = sorteo < model.prob_fuga
+    fuga_tratamiento = sorteo < prob_tratamiento
+
+    # Deciles de riesgo (10 cohortes) para que el usuario vea la distribucion.
+    prob = model.prob_fuga
+    deciles = np.clip(
+        (prob * 10).astype(int), 0, 9
+    )  # decil 0 = menor riesgo, decil 9 = mayor
+
+    cohortes = []
+    for d in range(10):
+        sel = np.where(deciles == d)[0]
+        if len(sel) == 0:
+            continue
+        miembro = ~model.es_control[sel]
+        promos = model.promos[sel]
+        gastos = model.gasto[sel]
+        fuga_c = fuga_control[sel]
+        fuga_t = fuga_tratamiento[sel]
+        salvados = fuga_c & ~fuga_t
+        gasto_trim = gastos * (HORIZONTE_DIAS / 365.0)
+
+        cohortes.append(
+            {
+                "decil": d + 1,
+                "rango_riesgo": [round(float(prob[sel].min()), 3), round(float(prob[sel].max()), 3)],
+                "agentes": int(len(sel)),
+                "tratados": int(miembro.sum()),
+                "promos_recibidas": int(promos.sum()),
+                "promos_por_agente": round(float(promos.mean()), 2),
+                "saturados": int((promos >= UMBRAL_SATURACION).sum()),
+                "fuga_control_pct": round(float(fuga_c.mean()) * 100, 2),
+                "fuga_tratamiento_pct": round(float(fuga_t.mean()) * 100, 2),
+                "salvados": int(salvados.sum()),
+                "gasto_en_riesgo_usd": round(float(gasto_trim[salvados].sum()), 2),
+                "valor_promedio_usd": round(float(gastos.mean()), 2),
+            }
+        )
+
+    return {
+        "escenario": esc.nombre,
+        "agentes_totales": n,
+        "umbral_saturacion": UMBRAL_SATURACION,
+        "efecto_promo_base": EFECTO_PROMO_BASE,
+        "cohortes": cohortes,
+    }
+
+
 def main() -> None:
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     poblacion = cargar_poblacion()

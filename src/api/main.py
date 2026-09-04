@@ -12,12 +12,15 @@ peticiones: leerla en cada llamada seria el cuello de botella.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 import sys
@@ -27,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from simulation.simulador import (  # noqa: E402
     Escenario,
     cargar_poblacion,
+    desglose_por_cohorte,
     simular,
 )
 
@@ -38,12 +42,24 @@ app = FastAPI(
     version="1.0.0",
     description=(
         "Estima el impacto comercial de una campana de retencion antes de "
-        "ejecutar el presupuesto."
+        "ejecutar el presupuesto. Nucleo multiagente vectorizado sobre la "
+        "poblacion real de clientes VIP."
     ),
 )
 
 # Estado del proceso. Se llena en el arranque.
 _estado: dict[str, Any] = {"poblacion": None}
+
+_DASHBOARD_FILE = Path(__file__).resolve().parent / "dashboard.html"
+
+
+@app.get("/", response_class=HTMLResponse)
+def raiz() -> str:
+    """Dashboard interactivo con el que el equipo comercial explora el sistema."""
+    try:
+        return _DASHBOARD_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "<h1>Dashboard no encontrado</h1><p>Falta dashboard.html junto a api/main.py</p>"
 
 
 class SolicitudEscenario(BaseModel):
@@ -114,11 +130,64 @@ def modelo() -> dict[str, Any]:
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
+def _deciles(df: pd.DataFrame, col: str, invertido: bool = False) -> list[dict]:
+    """Divide la poblacion en 10 deciles segun una columna numerica."""
+    if df.empty:
+        return []
+    orden = df[col].to_numpy(dtype=float)
+    # pd.qcut requiere valores unicos por decil; ante empates se usan cortes
+    # por rango lineal para que siempre haya 10 cohortes.
+    try:
+        bins = pd.qcut(orden, 10, labels=False, duplicates="drop")
+    except (ValueError, TypeError):
+        bins = np.clip((np.argsort(np.argsort(orden)) * 10) // len(orden), 0, 9)
+    res = []
+    for d in range(10):
+        sel = df[bins == d]
+        if sel.empty:
+            continue
+        vals = sel[col].to_numpy(dtype=float)
+        res.append(
+            {
+                "decil": d + 1,
+                "agentes": int(len(sel)),
+                "min": round(float(vals.min()), 4) if not invertido else round(float(vals.max()), 4),
+                "max": round(float(vals.max()), 4) if not invertido else round(float(vals.min()), 4),
+                "promedio": round(float(vals.mean()), 4),
+            }
+        )
+    return res
+
+
+@app.get("/v1/poblacion")
+def poblacion_en_vivo() -> dict[str, Any]:
+    """Muestra la poblacion de agentes en vivo: deciles de riesgo y de valor."""
+    pob = _poblacion()
+    riesgo = _deciles(pob, "prob_abandono")
+    valor = _deciles(pob, "monetario", invertido=True)
+    return {
+        "agentes_totales": int(len(pob)),
+        "deciles_riesgo": riesgo,
+        "deciles_valor": valor,
+    }
+
+
 @app.post("/v1/simular")
 def simular_escenario(payload: SolicitudEscenario) -> dict[str, Any]:
     """Simula una campana y devuelve su impacto frente al contrafactual."""
     resultado = simular(Escenario(**payload.model_dump()), _poblacion())
     return asdict(resultado)
+
+
+@app.post("/v1/simular/pasos")
+def simular_con_trazos(payload: SolicitudEscenario) -> dict[str, Any]:
+    """Igual que /v1/simular pero ademas descompone la reaccion por decil de riesgo.
+
+    Es lo que permite al dashboard mostrar a los agentes "trabajando": como
+    responde cada cohorte (salvados, saturados, fuga) bajo el escenario.
+    """
+    esc = Escenario(**payload.model_dump())
+    return desglose_por_cohorte(esc, _poblacion())
 
 
 @app.post("/v1/barrido")

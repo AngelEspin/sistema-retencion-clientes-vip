@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -123,7 +124,17 @@ def main() -> None:
     args = parser.parse_args()
 
     if not VENTAS_CSV.exists():
-        raise SystemExit(f"No se encontro el CSV de ventas: {VENTAS_CSV}")
+        print(f"No se encontro el CSV de ventas: {VENTAS_CSV}")
+        print("Intentando descargar los datos desde Google Drive...")
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "descargar_datos.py")],
+            cwd=str(ROOT),
+        )
+        if result.returncode != 0:
+            raise SystemExit("Fallo la descarga de datos. Revisa el mensaje anterior.")
+        if not VENTAS_CSV.exists():
+            raise SystemExit(f"Aun no se encuentra el CSV: {VENTAS_CSV}")
 
     DESTINO.parent.mkdir(parents=True, exist_ok=True)
     temp_dir = ROOT / "data" / ".duckdb_tmp"

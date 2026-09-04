@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Retencion VIP</title>
+<style>
+  :root { --azul:#2563eb; --verde:#16a34a; --rojo:#dc2626; --ambar:#d97706; --fondo:#f8fafc; --tarjeta:#fff; --borde:#e2e8f0; --texto:#1e293b; --gris:#64748b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--fondo); color:var(--texto); line-height:1.5; }
+  header { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; padding:24px 32px; }
+  header h1 { font-size:22px; font-weight:700; }
+  header p { font-size:14px; opacity:.9; margin-top:4px; }
+  header .meta { font-size:12px; opacity:.85; margin-top:6px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; font-weight:600; margin-left:6px; vertical-align:middle; }
+  .badge.aws { background:#232f3e; color:#ff9900; }
+  .badge.local { background:rgba(255,255,255,.2); color:#fff; }
+  main { max-width:1150px; margin:24px auto; padding:0 16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+  .tarjeta { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:16px 20px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .tarjeta .etiqueta { font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--gris); font-weight:600; }
+  .tarjeta .valor { font-size:24px; font-weight:700; margin-top:6px; }
+  .tarjeta .sub { font-size:12px; color:var(--gris); margin-top:2px; }
+  .seccion { margin-bottom:28px; }
+  .seccion h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
+  .seccion > p.desc { font-size:13px; color:var(--gris); margin-bottom:14px; }
+  .tarjetas-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:760px){ .tarjetas-2{grid-template-columns:1fr;} }
+  form.dos { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  form.tres { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:640px){ form.dos,form.tres{grid-template-columns:1fr;} }
+  .campo { display:flex; flex-direction:column; gap:4px; }
+  .campo label { font-size:13px; font-weight:600; color:var(--gris); }
+  .campo input, .campo select { padding:9px 12px; border:1px solid var(--borde); border-radius:8px; font-size:14px; }
+  .campo .ayuda { font-size:11px; color:var(--gris); }
+  button { padding:10px 16px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:filter .15s; }
+  button.primario { background:var(--azul); color:#fff; }
+  button.primario:hover { filter:brightness(1.1); }
+  button.secundario { background:#e2e8f0; color:var(--texto); }
+  .barra-accion { margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .resultado { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:16px; margin-top:16px; }
+  .metrias { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:12px; }
+  .metria { background:#f1f5f9; border-radius:8px; padding:10px 14px; }
+  .metria .m1 { font-size:11px; text-transform:uppercase; color:var(--gris); font-weight:600; }
+  .metria .m2 { font-size:20px; font-weight:700; }
+  .metria .m3 { font-size:12px; color:var(--gris); }
+  .tabla { width:100%; border-collapse:collapse; font-size:13px; }
+  .tabla th { text-align:left; padding:8px 10px; background:#f1f5f9; font-weight:600; color:var(--gris); }
+  .tabla td { padding:7px 10px; border-bottom:1px solid var(--borde); }
+  .tabla tr.destacado td { background:#eff6ff; font-weight:600; }
+  .pos { color:var(--verde); }
+  .neg { color:var(--rojo); }
+  .aviso { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:14px; }
+  .carga { display:none; color:var(--gris); font-size:13px; margin-top:8px; }
+  .carga.visible { display:block; }
+  .footer { text-align:center; color:var(--gris); font-size:12px; margin:30px 0 20px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+  .tag.ok { background:#dcfce7; color:#166534; }
+  .tag.no { background:#fee2e2; color:#991b1b; }
+  .tag.amber { background:#fef3c7; color:#92400e; }
+
+  /* Barras de cohortes */
+  .cohortes { margin-top:12px; }
+  .cohorte { margin-bottom:14px; }
+  .cohorte .cabecera { display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--gris); }
+  .cohorte .cabecera strong { color:var(--texto); }
+  .pista { position:relative; height:22px; background:#f1f5f9; border-radius:6px; overflow:hidden; display:flex; }
+  .pista .seg { height:100%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:700; white-space:nowrap; }
+  .seg.seg-salvado { background:var(--verde); }
+  .seg.seg-control { background:#94a3b8; }
+  .seg.seg-saturado { background:var(--ambar); }
+  .seg.seg-fuga { background:var(--rojo); }
+  .leyenda { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; margin-top:14px; color:var(--gris); }
+  .leyenda span i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle; }
+
+  /* Arquitectura */
+  .arquitectura { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; line-height:1.35; overflow-x:auto; padding:6px; }
+  .arq-fila { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  .chip { background:#f1f5f9; border:1px solid var(--borde); border-radius:8px; padding:6px 12px; min-width:120px; text-align:center; font-size:12px; }
+  .chip.aws { border-color:#ff9900; background:#fff7ed; color:#7c2d12; }
+  .chip.local { border-color:var(--azul); background:#eff6ff; color:#1e3a8a; }
+  .flecha { color:var(--gris); }
+  .pasos { margin:6px 0 6px 0; }
+  .paso { border-left:3px solid var(--borde); padding:4px 0 4px 12px; margin-left:8px; }
+  .paso.aws { border-left-color:#ff9900; }
+  .paso.local { border-left-color:var(--azul); }
+  .paso b { font-size:12px; }
+  .paso p { font-size:12px; color:var(--gris); margin-top:2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulador de Retencion VIP <span class="badge local">LOCAL</span><span class="badge aws">AWS SERVERLESS</span></h1>
+  <p>Sistema multiagente para segmentacion de clientes y optimizacion de retencion</p>
+  <div class="meta" id="cabecera-meta">Cargando...</div>
+</header>
+<main>
+  <div class="aviso" id="aviso-inicio" style="display:none"></div>
+
+  <div class="grid" id="grid-resumen"></div>
+
+  <section class="seccion">
+    <h2>Los agentes en vivo</h2>
+    <p class="desc">La poblacion de <strong id="pob-cantidad">--</strong> clientes VIP se resuelve de forma vectorizada (por eso tarda segundos, no horas). Este panel muestra su distribucion por riesgo de fuga y consumo.</p>
+    <div class="tarjetas-2">
+      <div class="tarjeta">
+        <div class="etiqueta">Deciles de riesgo de fuga</div>
+        <div class="cohortes" id="pob-riesgo"></div>
+      </div>
+      <div class="tarjeta">
+        <div class="etiqueta">Distribucion del valor</div>
+        <div class="cohortes" id="pob-valor"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <h2>Simular una campana <small style="font-weight:400;color:var(--gris);font-size:13px">ver a los agentes reaccionar</small></h2>
+    <div class="tarjeta">
+      <form class="dos" id="form-simular">
+        <div class="campo" style="grid-column:1/-1">
+          <label>Nombre del escenario</label>
+          <input type="text" id="s-nombre" value="campana_demo">
+        </div>
+        <div class="campo">
+          <label>Presupuesto (USD)</label>
+          <input type="number" id="s-presupuesto" value="5000" min="1" step="500">
+        </div>
+        <div class="campo">
+          <label>Costo por promocion (USD)</label>
+          <input type="number" id="s-costo" value="1.20" min="0.01" step="0.1">
+        </div>
+        <div class="campo">
+          <label>Promociones por cliente</label>
+          <select id="s-promos">
+            <option value="1">1 - conservador</option>
+            <option value="2" selected>2 - equilibrado</option>
+            <option value="3">3 - agresivo</option>
+            <option value="4">4 - muy agresivo</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Criterio de seleccion</label>
+          <select id="s-criterio">
+            <option value="valor_en_riesgo" selected>Valor en riesgo (recomendado)</option>
+            <option value="riesgo">Mayor riesgo de fuga</option>
+            <option value="valor">Mayor valor historico</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>% de control</label>
+          <input type="number" id="s-control" value="0.10" min="0" max="0.5" step="0.05">
+        </div>
+      </form>
+      <div class="barra-accion">
+        <button class="primario" onclick="simularCampana()">Simular campana</button>
+        <span class="carga" id="carga-simular">Simulando... medio millon de agentes</span>
+      </div>
+      <div id="resultado-simular"></div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <h2>Barrido de presupuestos <small style="font-weight:400;color:var(--gris);font-size:13px">cuanto gastar para mover la aguja</small></h2>
+    <div class="tarjeta">
+      <form class="tres" id="form-barrido">
+        <div class="campo">
+          <label>Promociones por cliente</label>
+          <select id="b-promos">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Criterio</label>
+          <select id="b-criterio">
+            <option value="valor_en_riesgo" selected>Valor en riesgo</option>
+            <option value="riesgo">Riesgo</option>
+            <option value="valor">Valor</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Presupuestos (USD)</label>
+          <input type="text" id="b-presupuestos" value="5000, 25000, 50000, 100000, 250000, 500000, 1000000">
+        </div>
+      </form>
+      <div class="barra-accion">
+        <button class="primario" onclick="barrido()">Ejecutar barrido</button>
+        <span class="carga" id="carga-barrido">Simulando...</span>
+      </div>
+      <div id="resultado-barrido"></div>
+    </div>
+  </section>
+
+  <section class="seccion">
+    <h2>Arquitectura <span class="tag ok">LOCAL = + AWS</span></h2>
+    <p class="desc">El mismo nucleo corre en dos vias. La API local (FastAPI) sirve este dashboard para explorar; la version serverless (AWS Lambda + S3) ejecuta el mismo simulador sin un servidor encendido 24/7, con coste cero en reposo.</p>
+    <div class="tarjeta">
+      <div class="arquitectura" id="arq"></div>
+    </div>
+  </section>
+
+  <div class="footer">API de escenarios &middot; <a href="/docs">/docs</a> (documentacion tecnica) &middot; nucleo vectorizado sobre <strong>538,983</strong> agentes</div>
+</main>
+
+<script>
+const fmtMoney = n => n == null ? '-' : '$' + Number(n).toLocaleString('es-EC', {maximumFractionDigits:0});
+const fmtNum = n => n == null ? '-' : Number(n).toLocaleString('es-EC');
+const fmtPct = n => n == null ? '-' : Number(n).toFixed(2) + '%';
+const ARQ_HTML = `
+<div class="pasos">
+  <div class="paso local"><b>1 · Datos crudos (local)</b><p>CSV 22.2 GB · DuckDB en streaming → Parquet particionado 1.25 GB (compresion 17.8x)</p></div>
+  <div class="paso local"><b>2 · RFM + VIP</b><p>3.1M clientes · segmento VIP = top 20% · concentra 82.63% del ingreso</p></div>
+  <div class="paso local"><b>3 · Modelo de abandono</b><p>Validacion temporal · AUC 0.874 · probabilidad de fuga por cliente</p></div>
+  <div class="paso local"><b>4 · Simulador multiagente</b><p>Mesa/vectorizado · 538,983 agentes, cada uno con su riesgo y gasto · contrafactual control vs tratamiento · saturacion a las 3 promos</p></div>
+  <div class="paso local"><b>5 · FastAPI local (este dashboard)</b><p>Exploracion interactiva · respuestas en 1-3 s</p></div>
+  <div class="paso aws"><b>6 · AWS Lambda + S3 (serverless)</b><p>Misma logica importada en lambda_handler · poblacion cacheada en el arranque en frio · coste cero en reposo · invocable via SDK/IAM o Function URL</p></div>
+</div>
+`;
+document.getElementById('arq').innerHTML = ARQ_HTML;
+
+function tarjeta(etiqueta, valor, sub='') {
+  return `<div class="tarjeta"><div class="etiqueta">${etiqueta}</div><div class="valor">${valor}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
+}
+
+async function api(ruta, opciones={}) {
+  const r = await fetch(ruta, opciones);
+  if (!r.ok) {
+    let det = '';
+    try { const j = await r.json(); det = j.detail || j.error || ''; } catch(e){}
+    throw new Error(det || r.statusText);
+  }
+  return r.json();
+}
+
+function barraCohorte(nombre, sub, total, salvado, saturado, fugaTrat, fugaCtrlNoSalv) {
+  const totalN = Math.max(1, total);
+  const pSalvado = (salvado/totalN)*100;
+  const pCtrl = (fugaCtrlNoSalv/totalN)*100;
+  const pSat = (saturado/totalN)*100;
+  const pFuga = (fugaTrat/totalN)*100;
+  const seg = [];
+  if (pSalvado>0.5) seg.push(`<div class="seg seg-salvado" style="width:${pSalvado}%">${Math.round(pSalvado)}%</div>`);
+  if (pCtrl>0.5) seg.push(`<div class="seg seg-control" style="width:${pCtrl}%">${Math.round(pCtrl)}% control</div>`);
+  if (pSat>0.5) seg.push(`<div class="seg seg-saturado" style="width:${pSat}%">${Math.round(pSat)}% sat</div>`);
+  if (pFuga>0.5) seg.push(`<div class="seg seg-fuga" style="width:${pFuga}%">${Math.round(pFuga)}% fuga</div>`);
+  return `<div class="cohorte">
+    <div class="cabecera"><strong>${nombre}</strong><span>${sub}</span></div>
+    <div class="pista">${seg.join('') || '<div style="height:100%;width:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#64748b">n/d</div>'}</div>
+  </div>`;
+}
+
+(async function cargar(){
+  try {
+    const [health, seg, mod] = await Promise.all([api('/health'), api('/v1/segmentacion'), api('/v1/modelo')]);
+    document.getElementById('cabecera-meta').textContent =
+      `${fmtNum(health.agentes_cargados)} agentes VIP cargados en memoria · estado: ${health.status}`;
+    document.getElementById('grid-resumen').innerHTML =
+      tarjeta('Agentes VIP', fmtNum(health.agentes_cargados), 'poblacion simulada') +
+      tarjeta('Ingreso total', fmtMoney(seg.ingreso_total)) +
+      tarjeta('Concentracion VIP', fmtPct(seg.concentracion_ingreso_vip_pct), 'del ingreso en top 20%') +
+      tarjeta('Fuga VIP', fmtPct(seg.tasa_fuga_vip_pct), fmtNum(seg.vips_en_fuga)+' clientes') +
+      tarjeta('AUC abandono', Number(mod.auc).toFixed(4), mod.cumple_objetivo?'cumple objetivo':'no cumple') +
+      tarjeta('Presupuesto -15%', 'USD 250,000', 'objetivo de fuga');
+  } catch(e){
+    document.getElementById('aviso-inicio').style.display='block';
+    document.getElementById('aviso-inicio').textContent = 'Error cargando resumen: ' + e.message;
+  }
+  try {
+    const pob = await api('/v1/poblacion');
+    document.getElementById('pob-cantidad').textContent = fmtNum(pob.agentes_totales);
+    document.getElementById('pob-riesgo').innerHTML = pob.deciles_riesgo.map(d=>
+      `<div class="cohorte">
+        <div class="cabecera"><strong>Decil ${d.decil}</strong><span>riesgo ${fmtPct(d.riesgo_min)}-${fmtPct(d.riesgo_max)}</span></div>
+        <div style="height:16px;background:linear-gradient(90deg,#3b82f6,#dc2626)"></div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">${fmtNum(d.agentes)} agentes</div>
+      </div>`).join('');
+    document.getElementById('pob-valor').innerHTML = pob.deciles_valor.map(d=>
+      `<div class="cohorte">
+        <div class="cabecera"><strong>Decil ${d.decil}</strong><span>valor ~${fmtMoney(d.valor_promedio)}</span></div>
+        <div style="height:16px;background:linear-gradient(90deg,#0ea5e9,#16a34a)"></div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">${fmtNum(d.agentes)} agentes</div>
+      </div>`).join('');
+  } catch(e){
+    document.getElementById('pob-riesgo').innerHTML = '<div class="etiqueta" style="color:#991b1b">No disponible</div>';
+  }
+})();
+
+function metria(m1,m2,m3=''){return `<div class="metria"><div class="m1">${m1}</div><div class="m2">${m2}</div><div class="m3">${m3}</div></div>`;}
+
+function cohortesDe(resultado, datos){
+  if (!datos || !datos.cohortes || !datos.cohortes.length) return '';
+  const items = datos.cohortes.map(c=>barraCohorte(
+    `Decil ${c.decil}`,
+    `${fmtNum(c.agentes)} agentes`,
+    c.agentes,
+    c.salvados,
+    c.saturados,
+    c.fuga_tratamiento_pct/100*c.agentes,
+    (c.fuga_control_pct/100 - c.fuga_tratamiento_pct/100)*c.agentes
+  )).join('');
+  return `<div style="margin-top:16px">
+    <div class="etiqueta" style="margin-bottom:10px">Como reaccionaron los agentes por decil de riesgo</div>
+    <div class="cohortes">${items}</div>
+    <div class="leyenda">
+      <span><i style="background:var(--verde)"></i>Salvados</span>
+      <span><i style="background:var(--ambar)"></i>Saturados</span>
+      <span><i style="background:var(--rojo)"></i>Siguen en fuga (tratamiento)</span>
+      <span><i style="background:#94a3b8"></i>Control sin intervencion</span>
+    </div>
+  </div>`;
+}
+
+async function simularCampana(){
+  const caja = document.getElementById('resultado-simular');
+  const carga = document.getElementById('carga-simular');
+  caja.innerHTML = ''; carga.classList.add('visible');
+  const body = {
+    nombre: document.getElementById('s-nombre').value,
+    presupuesto_usd: parseFloat(document.getElementById('s-presupuesto').value),
+    costo_promo_usd: parseFloat(document.getElementById('s-costo').value),
+    promos_por_cliente: parseInt(document.getElementById('s-promos').value),
+    criterio: document.getElementById('s-criterio').value,
+    pct_control: parseFloat(document.getElementById('s-control').value)
+  };
+  try {
+    const [r, trazo] = await Promise.all([
+      api('/v1/simular', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
+      api('/v1/simular/pasos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    ]);
+    const saturado = r.clientes_saturados > 0;
+    caja.innerHTML =
+      `<div class="metrias">
+         ${metria('Reduccion de fuga', fmtPct(r.reduccion_fuga_pct), 'efecto causal pareado')}
+         ${metria('ROI', Number(r.roi).toFixed(2), 'retorno por USD')}
+         ${metria('Ingreso incremental', fmtMoney(r.ingreso_incremental_usd), 'trimestre simulado')}
+         ${metria('Costo total', fmtMoney(r.costo_total_usd), fmtNum(r.promos_enviadas)+' promos')}
+         ${metria('Clientes alcanzados', fmtNum(r.clientes_alcanzados), saturado?fmtNum(r.clientes_saturados)+' saturados':'0 saturados')}
+       </div>
+       ${saturado?`<div class="aviso" style="margin:0 0 12px">ATENCION: ${fmtNum(r.clientes_saturados)} clientes sobrepasaron el umbral de ${r.detalle.umbral_saturacion} promociones y se saturaron: el dinero invertido en ellos dio rendimiento cero.</div>`:''}
+       ${cohortesDe(r, trazo)}`;
+  } catch(e){
+    caja.innerHTML = `<div class="aviso" style="margin:0;background:#fee2e2;border-color:#fecaca;color:#991b1b">Error: ${e.message}</div>`;
+  } finally {
+    carga.classList.remove('visible');
+  }
+}
+
+async function barrido(){
+  const caja = document.getElementById('resultado-barrido');
+  const carga = document.getElementById('carga-barrido');
+  caja.innerHTML=''; carga.classList.add('visible');
+  const presus = document.getElementById('b-presupuestos').value.split(',').map(s=>parseFloat(s)).filter(x=>!isNaN(x));
+  const body = { presupuestos: presus, promos_por_cliente: parseInt(document.getElementById('b-promos').value), criterio: document.getElementById('b-criterio').value };
+  try {
+    const r = await api('/v1/barrido', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const filasHtml = r.resultados.map(f=>{
+      const destacado = f.presupuesto_usd === r.presupuesto_minimo_para_objetivo_15pct;
+      return `<tr class="${destacado?'destacado':''}">
+        <td>${fmtMoney(f.presupuesto_usd)}</td>
+        <td>${fmtNum(f.clientes_alcanzados)} (${fmtPct(f.cobertura_pct)})</td>
+        <td>${f.reduccion_fuga_pct>=15?`<span class="pos">${fmtPct(f.reduccion_fuga_pct)}</span>`:fmtPct(f.reduccion_fuga_pct)}</td>
+        <td>${fmtNum(f.roi)}</td>
+        <td>${fmtMoney(f.ingreso_incremental_usd)}</td>
+        <td>${f.clientes_saturados>0?fmtNum(f.clientes_saturados):'-'}</td>
+      </tr>`;
+    }).join('');
+    caja.innerHTML =
+      `<table class="tabla">
+         <thead><tr><th>Presupuesto</th><th>Alcanzados</th><th>Reduccion fuga</th><th>ROI</th><th>Ingreso incremental</th><th>Saturados</th></tr></thead>
+         <tbody>${filasHtml}</tbody>
+       </table>
+       <div style="margin-top:12px;font-size:13px">Presupuesto minimo para -15% de fuga: <strong>${r.presupuesto_minimo_para_objetivo_15pct?fmtMoney(r.presupuesto_minimo_para_objetivo_15pct):'no alcanzable en este rango'}</strong></div>`;
+  } catch(e){
+    caja.innerHTML = `<div class="aviso" style="margin:0;background:#fee2e2;border-color:#fecaca;color:#991b1b">Error: ${e.message}</div>`;
+  } finally {
+    carga.classList.remove('visible');
+  }
+}
+</script>
+</body>
+</html>
