@@ -10,6 +10,9 @@ Definiciones (fijadas aqui para que el resto del pipeline las herede):
   * Monetario  -- suma de venta neta.
   * VIP        -- top 20% por valor monetario dentro de la ventana observada.
   * Fuga       -- VIP sin ninguna compra en los 90 dias previos al corte.
+  * Cuenta generica -- ID con compras en mas de 100 sucursales distintas. No es
+    una persona (consumidor final, cuenta corporativa) y se excluye del
+    segmento; su peso se reporta aparte.
 """
 
 from __future__ import annotations
@@ -31,6 +34,9 @@ ARTIFACTS = ROOT / "data" / "artifacts"
 DIAS_FUGA = 90
 # Proporcion superior de clientes por valor que define el segmento VIP.
 CUANTIL_VIP = 0.80
+# Una persona no compra en cien farmacias distintas en un anio. Los IDs que lo
+# hacen son cuentas compartidas (consumidor final, una cuenta corporativa).
+MAX_SUCURSALES_PERSONA = 100
 
 
 def construir_rfm(con: duckdb.DuckDBPyConnection, corte: str) -> None:
@@ -81,6 +87,7 @@ def construir_rfm(con: duckdb.DuckDBPyConnection, corte: str) -> None:
                     ANY_VALUE(sucursal_id)              AS sucursal_id,
                     ANY_VALUE(marca)                    AS marca,
                     SUM(venta_neta)                     AS venta,
+                    SUM(costo)                          AS costo,
                     COUNT(*)                            AS lineas,
                     MAX(CASE WHEN promocion_id IS NOT NULL
                               AND promocion_id <> '' THEN 1 ELSE 0 END) AS con_promo
@@ -108,6 +115,9 @@ def construir_rfm(con: duckdb.DuckDBPyConnection, corte: str) -> None:
             DATE_DIFF('day', MAX(fecha), TIMESTAMP '{corte}') AS recencia,
             COUNT(*)                                           AS frecuencia,
             SUM(venta)                                         AS monetario,
+            -- Margen bruto: lo que de verdad pierde la cadena cuando un cliente
+            -- se va. Valorar la retencion a ingreso, y no a margen, infla el ROI.
+            SUM(venta) - SUM(costo)                            AS margen_bruto,
             SUM(lineas)                                        AS lineas,
             MIN(fecha)                                         AS primera_compra,
             MAX(fecha)                                         AS ultima_compra,
@@ -121,6 +131,19 @@ def construir_rfm(con: duckdb.DuckDBPyConnection, corte: str) -> None:
         GROUP BY cliente_id
         """
     )
+
+    # --- Cuentas genericas --------------------------------------------------
+    # Las cuentas compartidas concentran el 40% de los tickets y el 12% del
+    # ingreso, pero no son clientes retenibles: no hay a quien enviarle una
+    # promocion. Dentro del ranking encabezarian cualquier criterio por valor e
+    # inflarian la concentracion del segmento VIP. Se separan y se reportan.
+    con.execute(
+        f"""
+        CREATE OR REPLACE TABLE genericas AS
+        SELECT * FROM agregado WHERE sucursales_visitadas > {MAX_SUCURSALES_PERSONA}
+        """
+    )
+    con.execute(f"DELETE FROM agregado WHERE sucursales_visitadas > {MAX_SUCURSALES_PERSONA}")
 
     # --- Etapa 2b: scores y segmentacion ------------------------------------
     # El umbral VIP se calcula una sola vez como escalar en lugar de como
@@ -137,6 +160,7 @@ def construir_rfm(con: duckdb.DuckDBPyConnection, corte: str) -> None:
         SELECT
             *,
             monetario / NULLIF(frecuencia, 0) AS ticket_promedio,
+            margen_bruto / NULLIF(monetario, 0) AS margen_pct,
             tickets_con_promo::DOUBLE / NULLIF(frecuencia, 0) AS propension_promo,
             NTILE(5) OVER (ORDER BY recencia DESC)  AS r_score,
             NTILE(5) OVER (ORDER BY frecuencia)     AS f_score,
@@ -159,13 +183,23 @@ def resumen(con: duckdb.DuckDBPyConnection, corte: str) -> dict:
             SUM(CASE WHEN es_vip THEN monetario ELSE 0 END)       AS ingreso_vip,
             SUM(CASE WHEN es_vip AND en_fuga THEN 1 ELSE 0 END)   AS vips_en_fuga,
             AVG(recencia)                                         AS recencia_media,
-            AVG(frecuencia)                                       AS frecuencia_media
+            AVG(frecuencia)                                       AS frecuencia_media,
+            SUM(margen_bruto)                                     AS margen_total,
+            SUM(CASE WHEN es_vip THEN margen_bruto ELSE 0 END)    AS margen_vip,
+            SUM(CASE WHEN es_vip THEN frecuencia ELSE 0 END)      AS tickets_vip,
+            AVG(CASE WHEN es_vip THEN propension_promo END)       AS propension_promo_vip
         FROM rfm
         """
     ).fetchone()
 
-    clientes, vips, ingreso_total, ingreso_vip, vips_fuga, rec_media, frec_media = fila
+    (clientes, vips, ingreso_total, ingreso_vip, vips_fuga, rec_media, frec_media,
+     margen_total, margen_vip, tickets_vip, propension_vip) = fila
     concentracion = ingreso_vip / ingreso_total if ingreso_total else 0.0
+
+    n_gen, tickets_gen, ingreso_gen = con.execute(
+        "SELECT COUNT(*), COALESCE(SUM(frecuencia), 0), COALESCE(SUM(monetario), 0) FROM genericas"
+    ).fetchone()
+    tickets_personas = con.execute("SELECT SUM(frecuencia) FROM rfm").fetchone()[0]
 
     return {
         "fecha_corte": corte,
@@ -179,6 +213,18 @@ def resumen(con: duckdb.DuckDBPyConnection, corte: str) -> dict:
         "tasa_fuga_vip_pct": round(100 * vips_fuga / vips, 2) if vips else 0,
         "recencia_media_dias": round(float(rec_media), 1),
         "frecuencia_media_tickets": round(float(frec_media), 2),
+        "margen_bruto_total": round(float(margen_total), 2),
+        "margen_bruto_vip": round(float(margen_vip), 2),
+        "margen_bruto_pct": round(100 * margen_total / ingreso_total, 2) if ingreso_total else 0,
+        "margen_bruto_vip_pct": round(100 * margen_vip / ingreso_vip, 2) if ingreso_vip else 0,
+        "ticket_promedio_vip": round(float(ingreso_vip / tickets_vip), 2) if tickets_vip else 0,
+        "propension_promo_vip_media": round(float(propension_vip), 4),
+        "cuentas_genericas_excluidas": int(n_gen),
+        "ingreso_cuentas_genericas": round(float(ingreso_gen), 2),
+        "pct_tickets_cuentas_genericas": round(
+            100 * tickets_gen / (tickets_gen + tickets_personas), 2
+        ),
+        "pct_ingreso_cuentas_genericas": round(100 * ingreso_gen / (ingreso_gen + ingreso_total), 2),
     }
 
 

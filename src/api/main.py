@@ -12,12 +12,10 @@ peticiones: leerla en cada llamada seria el cuello de botella.
 from __future__ import annotations
 
 import json
-import math
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
-import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -28,9 +26,13 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from simulation.simulador import (  # noqa: E402
+    EFECTO_PROMO_BASE,
+    UMBRAL_SATURACION,
     Escenario,
     cargar_poblacion,
+    deciles,
     desglose_por_cohorte,
+    fila_barrido,
     simular,
 )
 
@@ -67,19 +69,22 @@ class SolicitudEscenario(BaseModel):
     presupuesto_usd: float = Field(default=5000, gt=0, le=10_000_000)
     costo_promo_usd: float = Field(default=1.20, gt=0, le=100)
     promos_por_cliente: int = Field(default=2, ge=1, le=10)
-    criterio: Literal["riesgo", "valor", "valor_en_riesgo"] = "valor_en_riesgo"
+    criterio: Literal["riesgo", "valor", "valor_en_riesgo", "aleatorio", "recencia"] = "valor_en_riesgo"
     pct_control: float = Field(default=0.10, ge=0.0, le=0.5)
     semilla: int = 42
+    # Supuestos de comportamiento expuestos para analisis de sensibilidad.
+    efecto_promo: float = Field(default=EFECTO_PROMO_BASE, ge=0.0, le=0.95)
+    umbral_saturacion: int = Field(default=UMBRAL_SATURACION, ge=1, le=11)
 
 
 class SolicitudBarrido(BaseModel):
     presupuestos: list[float] = Field(
-        default=[5_000, 25_000, 50_000, 100_000, 250_000],
+        default=[5_000, 25_000, 50_000, 100_000, 150_000, 250_000],
         min_length=1,
         max_length=12,
     )
     promos_por_cliente: int = Field(default=2, ge=1, le=10)
-    criterio: Literal["riesgo", "valor", "valor_en_riesgo"] = "valor_en_riesgo"
+    criterio: Literal["riesgo", "valor", "valor_en_riesgo", "aleatorio", "recencia"] = "valor_en_riesgo"
 
 
 @app.on_event("startup")
@@ -130,41 +135,12 @@ def modelo() -> dict[str, Any]:
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
-def _deciles(df: pd.DataFrame, col: str, invertido: bool = False) -> list[dict]:
-    """Divide la poblacion en 10 deciles segun una columna numerica."""
-    if df.empty:
-        return []
-    orden = df[col].to_numpy(dtype=float)
-    # pd.qcut requiere valores unicos por decil; ante empates se usan cortes
-    # por rango lineal para que siempre haya 10 cohortes.
-    try:
-        bins = pd.qcut(orden, 10, labels=False, duplicates="drop")
-    except (ValueError, TypeError):
-        bins = np.clip((np.argsort(np.argsort(orden)) * 10) // len(orden), 0, 9)
-    res = []
-    for d in range(10):
-        sel = df[bins == d]
-        if sel.empty:
-            continue
-        vals = sel[col].to_numpy(dtype=float)
-        res.append(
-            {
-                "decil": d + 1,
-                "agentes": int(len(sel)),
-                "min": round(float(vals.min()), 4) if not invertido else round(float(vals.max()), 4),
-                "max": round(float(vals.max()), 4) if not invertido else round(float(vals.min()), 4),
-                "promedio": round(float(vals.mean()), 4),
-            }
-        )
-    return res
-
-
 @app.get("/v1/poblacion")
 def poblacion_en_vivo() -> dict[str, Any]:
     """Muestra la poblacion de agentes en vivo: deciles de riesgo y de valor."""
     pob = _poblacion()
-    riesgo = _deciles(pob, "prob_abandono")
-    valor = _deciles(pob, "monetario", invertido=True)
+    riesgo = deciles(pob, "prob_abandono")
+    valor = deciles(pob, "monetario", invertido=True)
     return {
         "agentes_totales": int(len(pob)),
         "deciles_riesgo": riesgo,
@@ -209,17 +185,7 @@ def barrido(payload: SolicitudBarrido) -> dict[str, Any]:
             ),
             pob,
         )
-        filas.append(
-            {
-                "presupuesto_usd": presupuesto,
-                "clientes_alcanzados": r.clientes_alcanzados,
-                "cobertura_pct": round(100 * r.clientes_alcanzados / r.agentes, 2),
-                "reduccion_fuga_pct": r.reduccion_fuga_pct,
-                "roi": r.roi,
-                "ingreso_incremental_usd": r.ingreso_incremental_usd,
-                "clientes_saturados": r.clientes_saturados,
-            }
-        )
+        filas.append(fila_barrido(r, presupuesto))
 
     objetivo = next((f for f in filas if f["reduccion_fuga_pct"] >= 15.0), None)
     return {
