@@ -12,11 +12,14 @@ Registro de lo construido, las decisiones tomadas y los problemas encontrados.
 
 | Objetivo del guion | Meta | Medido | Estado |
 |---|---|---|---|
-| Concentración de ingreso en el 20% VIP | 70–80% | **82.63%** | Superado |
-| AUC del modelo de abandono | ≥ 0.75 | **0.8745** | Superado |
-| Respuesta de escenario | < 10 min | **1–3 s** | Superado |
-| Reducción de fuga trimestral VIP | −15% | **−18.28%** con USD 150.000 | Alcanzable, pero no con presupuestos pequeños |
-| ROI de retención | 3:1 | **5.04:1** en ese mismo punto | Superado |
+| Concentración de ingreso en el 20% VIP | 70–80% | **80.26%** sin cuentas genéricas (82.63% con ellas) | Cumplido; supera el rango por 0.26 pp |
+| AUC del modelo de abandono | ≥ 0.75 | **0.8753** | Superado |
+| Respuesta de escenario | < 10 min | **0.3–0.6 s** en local | Superado |
+| Reducción de fuga trimestral VIP | −15% | **−15.05%** con USD 139.000, solo con el efecto del guion | Condicionado al efecto real (ver Paso 8) |
+| ROI de retención | 3:1 | **6.08:1** sobre ingreso, **1.39:1** sobre margen | Solo sobre ingreso y con el efecto del guion |
+
+Las cifras de esta tabla son las de la re-ejecución del 02/10/2026 (Paso 8), que corrigió
+cuatro defectos que inflaban o deformaban los resultados anteriores.
 
 ---
 
@@ -307,10 +310,89 @@ directa; falta solo decidir cómo exponerla. Tres opciones, de menos a más abie
 
 ---
 
+## Paso 8 — Re-ejecución completa, correcciones y análisis costo/beneficio (02/10/2026)
+
+El pipeline se volvió a correr de punta a punta sobre los crudos (ahora en
+`data/Unprocessed/`) con [`ejecutar_pipeline.py`](ejecutar_pipeline.py), que registra
+tiempo y RAM por etapa en `data/artifacts/tiempos_pipeline.json`:
+
+| Etapa | Duración | Pico de RAM |
+|---|---|---|
+| Ingesta (72.509.368 filas, 22.2 GB → 1.49 GB) | 2.9 min | — |
+| RFM | 1.8 min | 6.7 GB |
+| Modelo de abandono | 2.1 min | 8.1 GB |
+| Simulación de escenarios | 0.1 min | 0.3 GB |
+
+### Defectos encontrados y corregidos
+
+| Defecto | Efecto | Corrección |
+|---|---|---|
+| **4 cuentas genéricas** (consumidor final, una cuenta RUC) compran en 114–698 sucursales | 40% de los tickets y 12% del ingreso tratados como "clientes"; encabezaban el ranking por valor | Regla `MAX_SUCURSALES_PERSONA = 100` en RFM y modelo; la concentración VIP pasa de 82.63% a 80.26% |
+| `propension_promo` no llegaba a `scores_vip.parquet` | Todos los agentes con receptividad 0.75 constante, sin aviso | Se exporta la columna; receptividad heterogénea, media 0.62 |
+| `monetario` cubre 274 días pero se dividía como si fuera un año | Valor trimestral del cliente subestimado 25% | Columna `dias_ventana` |
+| `max(1, …)` en la asignación | Con presupuesto menor que una asignación, gastaba más de lo presupuestado | Sin piso; cubierto por prueba funcional |
+
+Además: la ingesta conserva `p_costo` (costo efectivo, ya neto de lo que financia el
+proveedor), lo que permite valorar todo a **margen** (25.37% total, 24.69% VIP) y no a
+ingreso. El simulador agrega los criterios `aleatorio` y `recencia` como líneas base, los
+parámetros `efecto_promo` y `umbral_saturacion` por escenario, y un cálculo vectorizado
+2.5× más rápido, verificado idéntico al anterior sobre los artefactos previos.
+
+### Costo/beneficio
+
+[`src/evaluacion/costo_beneficio.py`](src/evaluacion/costo_beneficio.py) compara la
+política del sistema contra la práctica actual (las 19 promociones del año son masivas)
+con el mismo presupuesto, 10 semillas por configuración:
+
+| Escenario | Δ margen/trimestre | TCO 3 años | VPN | Payback |
+|---|---|---|---|---|
+| Pesimista | USD 4.290 | USD 63.366 | −USD 34.876 | no se recupera |
+| Realista | USD 42.302 | USD 24.212 | USD 289.006 | 4.2 meses |
+| Optimista | USD 234.788 | USD 20.816 | USD 3.345.856 | 3.1 meses |
+
+La campaña de USD 139.000 solo es rentable si el efecto base real es ≥ 0.25. Con el
+efecto realista anclado en la literatura (0.10), el presupuesto óptimo es ~USD 4.000 por
+trimestre y la meta de −15% no se alcanza con ningún presupuesto (máximo −9.7%).
+
+### Validación
+
+Criterios registrados antes de medir en `src/evaluacion/criterios_validacion.json`.
+[`infra/pruebas_funcionales.py`](infra/pruebas_funcionales.py): 33/33 casos en local
+(rutas, paridad exacta, 14 entradas inválidas → 422, 6 casos borde). La API local y el
+dashboard se verificaron por HTTP.
+
+### Nube: AWS emulado en local (LocalStack)
+
+Se perdió el acceso a AWS Academy Learner Lab. El despliegue se hace contra **AWS
+emulado en local**: LocalStack 4.14.0 Community en Docker sobre WSL2 (Ubuntu 24.04),
+levantado con [`infra/localstack/levantar_localstack.sh`](infra/localstack/levantar_localstack.sh).
+Las versiones 2026.x de LocalStack exigen token de licencia; la 4.14.0 es la última
+Community que corre sin cuenta.
+
+| Paso | Resultado |
+|---|---|
+| `desplegar.py --localstack` | Bucket privado y cifrado, Lambda con las 7 rutas, Function URL `AWS_IAM`; paquete de 73.4 MB (sin capas en Community: pandas, numpy y pyarrow empaquetados con las versiones locales) |
+| `pruebas_funcionales.py --remoto` | 33/33 casos; paridad exacta con el simulador local |
+| `prueba_carga.py` | Caliente p50 148 ms / p95 180 ms; arranque en frío máx. 7.8 s; 0 errores con 10×3 concurrentes |
+| Petición sin firma a la Function URL | 200: LocalStack Community no aplica IAM (en AWS sería 403) |
+
+La enmienda que cambia el instrumento (AWS → LocalStack) se registró en
+`criterios_validacion.json` antes de medir; los umbrales no cambiaron. Para el costo,
+la duración medida se duplica: LocalStack no limita la CPU como una Lambda de 2 GB.
+
+Para retomar: `wsl -d Ubuntu-24.04 -u root -- bash infra/localstack/levantar_localstack.sh`
+y mantener abierta una sesión de WSL (la distribución se apaga cuando no queda ninguna),
+luego exportar `AWS_ENDPOINT_URL=http://localhost:4566` con credenciales `test`/`test`.
+
+---
+
 ## Pendiente
 
-- [ ] Exponer la Lambda (decisión de arriba)
-- [ ] Paso 8 — Backtest contra campañas reales ejecutadas (requiere datos de campañas,
+- [x] Completar en el handler de Lambda las rutas `/v1/poblacion` y `/v1/simular/pasos`
+- [x] Desplegar la versión nueva y medir latencia y costo (en AWS emulado, LocalStack)
+- [ ] Repetir latencia, arranque en frío y seguridad IAM en una cuenta real de AWS
+- [x] Exponer la Lambda: Function URL con `AWS_IAM` (verificada en LocalStack)
+- [ ] Backtest o piloto contra campañas reales ejecutadas (requiere datos de campañas,
       que no están en el dataset actual)
 - [ ] Control Room: tablero de deriva (PSI, caída de AUC, simulación vs realidad)
 - [ ] Step Functions para orquestar el recálculo mensual de RFM

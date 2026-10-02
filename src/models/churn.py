@@ -43,6 +43,9 @@ ARTIFACTS = ROOT / "data" / "artifacts"
 
 DIAS_FUGA = 90
 CUANTIL_VIP = 0.80
+# Misma regla que features/rfm.py: los IDs que compran en mas de cien farmacias
+# son cuentas compartidas, no personas, y no entran a la poblacion VIP.
+MAX_SUCURSALES_PERSONA = 100
 
 CORTE_ENTRENAMIENTO = "2026-01-01"
 CORTE_PRUEBA = "2026-04-01"
@@ -89,6 +92,7 @@ def construir_dataset(con: duckdb.DuckDBPyConnection, corte: str) -> pd.DataFram
                 DATE_DIFF('day', MAX(fecha), TIMESTAMP '{corte}')  AS recencia,
                 COUNT(*)                                            AS frecuencia,
                 SUM(venta)                                          AS monetario,
+                SUM(venta) - SUM(costo)                             AS margen,
                 SUM(lineas)                                         AS lineas,
                 DATE_DIFF('day', MIN(fecha), TIMESTAMP '{corte}')  AS antiguedad_dias,
                 APPROX_COUNT_DISTINCT(sucursal_id)                  AS sucursales_visitadas,
@@ -122,15 +126,35 @@ def construir_dataset(con: duckdb.DuckDBPyConnection, corte: str) -> pd.DataFram
                 gasto_ult_90 / NULLIF(gasto_prev_90, 0)       AS tendencia_gasto,
                 monetario >= QUANTILE_CONT(monetario, {CUANTIL_VIP}) OVER () AS es_vip
             FROM agregado
+            WHERE sucursales_visitadas <= {MAX_SUCURSALES_PERSONA}
         )
         SELECT
             c.*,
+            -- Largo de la ventana observada. `monetario` y `margen` suman toda
+            -- la ventana, asi que el simulador necesita este divisor para
+            -- llevarlos a valor trimestral (no es un anio completo).
+            DATE_DIFF('day', (SELECT MIN(fecha) FROM historico),
+                      TIMESTAMP '{corte}')                    AS dias_ventana,
             CASE WHEN f.cliente_id IS NULL THEN 1 ELSE 0 END AS abandono
         FROM con_vip c
         LEFT JOIN futuro f USING (cliente_id)
         WHERE c.es_vip
         """
     ).df()
+
+
+def indice_estabilidad(referencia: np.ndarray, actual: np.ndarray, bins: int = 10) -> float:
+    """PSI entre dos distribuciones de score, con cortes en deciles de la referencia.
+
+    Es la metrica de deriva que vigila el Control Room: < 0.10 estable,
+    0.10-0.25 vigilar, > 0.25 recalibrar.
+    """
+    cortes = np.unique(np.quantile(referencia, np.linspace(0, 1, bins + 1)))
+    cortes[0], cortes[-1] = -np.inf, np.inf
+    ref = np.histogram(referencia, cortes)[0] / len(referencia)
+    act = np.histogram(actual, cortes)[0] / len(actual)
+    ref, act = np.clip(ref, 1e-6, None), np.clip(act, 1e-6, None)
+    return float(np.sum((act - ref) * np.log(act / ref)))
 
 
 def preparar(df: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
@@ -173,6 +197,7 @@ def main() -> None:
     )
     modelo.fit(x_tr, y_tr)
 
+    p_tr = modelo.predict_proba(x_tr)[:, 1]
     p_te = modelo.predict_proba(x_te)[:, 1]
     metricas = {
         "corte_entrenamiento": CORTE_ENTRENAMIENTO,
@@ -196,13 +221,29 @@ def main() -> None:
         100 * float(y_te[top].sum() / max(y_te.sum(), 1)), 2
     )
 
+    # Linea base ingenua: ordenar solo por recencia, que es la regla que el
+    # negocio ya usa ("no viene hace tiempo"). El modelo tiene que superarla.
+    metricas["auc_linea_base_recencia"] = round(
+        float(roc_auc_score(y_te, x_te["recencia"].fillna(x_te["recencia"].max()))), 4
+    )
+    # Calibracion: el simulador usa la probabilidad como tal, no solo el orden,
+    # asi que un sesgo aqui se traslada directo a la fuga simulada.
+    metricas["tasa_abandono_predicha_media"] = round(float(p_te.mean()), 4)
+    metricas["sesgo_calibracion_pp"] = round(100 * float(p_te.mean() - y_te.mean()), 2)
+    metricas["psi_score_entrenamiento_vs_prueba"] = round(indice_estabilidad(p_tr, p_te), 4)
+
     (ARTIFACTS / "churn_metricas.json").write_text(
         json.dumps(metricas, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
     # El score por cliente alimenta al simulador: cada agente arranca con su
     # probabilidad real de fuga en lugar de un valor promedio.
-    salida = df_te[["cliente_id", "marca_principal", "monetario", "frecuencia", "recencia"]].copy()
+    # propension_promo alimenta la receptividad de cada agente y margen su
+    # valor economico; sin ellas el simulador cae a valores constantes.
+    salida = df_te[
+        ["cliente_id", "marca_principal", "monetario", "margen", "frecuencia",
+         "recencia", "propension_promo", "dias_ventana"]
+    ].copy()
     salida["prob_abandono"] = p_te
     salida["abandono_real"] = y_te
     salida.to_parquet(ARTIFACTS / "scores_vip.parquet", index=False)

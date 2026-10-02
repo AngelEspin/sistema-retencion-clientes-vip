@@ -11,7 +11,9 @@ Decisiones de diseno:
   * Particion (marca, anio_mes): es lo que despues permite que Athena y las
     consultas locales lean solo el trozo que necesitan.
   * Seudonimizacion: se conserva el ID ya anonimizado del origen y se
-    descartan las columnas de costo/contabilidad que no alimentan el modelo.
+    descartan las columnas contables que no alimentan el modelo. Del costo se
+    conserva solo el efectivo (p_costo), que es lo que permite medir el
+    beneficio de una campana en margen y no en ingreso.
 """
 
 from __future__ import annotations
@@ -20,12 +22,20 @@ import argparse
 import shutil
 import sys
 import time
+import zipfile
 from pathlib import Path
 
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[2]
-DATOS = ROOT / "Datos"
+# Los crudos llegan por dos vias: la descarga desde Google Drive (Datos/, ver
+# descargar_datos.py) o una copia manual en data/Unprocessed/. Se usa la primera
+# ubicacion que tenga el CSV de ventas.
+_UBICACIONES = (ROOT / "data" / "Unprocessed", ROOT / "Datos")
+DATOS = next(
+    (d for d in _UBICACIONES if (d / "ventas_anonimizado-001.csv").exists()),
+    ROOT / "Datos",
+)
 DESTINO = ROOT / "data" / "processed" / "ventas"
 
 VENTAS_CSV = DATOS / "ventas_anonimizado-001.csv"
@@ -69,6 +79,10 @@ def construir_consulta() -> str:
             p_numero                             AS ticket_id,
             TRY_CAST(p_cantidad AS DOUBLE)       AS cantidad,
             TRY_CAST(p_subtotal AS DOUBLE)       AS venta_neta,
+            -- Costo efectivo para la cadena. p_costo ya descuenta la parte de
+            -- la promocion que financia el proveedor (costo_noasume_*);
+            -- p_costo_contable la incluye y sobrestimaria el costo.
+            TRY_CAST(p_costo AS DOUBLE)          AS costo,
             TRY_CAST(p_descuento AS DOUBLE)      AS descuento,
             id_promocion                         AS promocion_id,
             tipo_promocion                       AS promocion_tipo
@@ -100,6 +114,7 @@ def construir_consulta() -> str:
         v.ticket_id,
         v.cantidad,
         v.venta_neta,
+        v.costo,
         v.descuento,
         v.promocion_id,
         v.promocion_tipo,
@@ -111,6 +126,25 @@ def construir_consulta() -> str:
     FROM ventas v
     LEFT JOIN sucursales s USING (sucursal_id)
     """
+
+
+def asegurar_maestros() -> None:
+    """Extrae los maestros (sucursales, clientes, catalogo) si solo esta el zip.
+
+    La carpeta de Drive se descarga como ``Dataset-*.zip`` con los CSV dentro de
+    una subcarpeta. Se aplanan junto al CSV de ventas, sin pisar los existentes.
+    """
+    if SUCURSALES_CSV.exists():
+        return
+    for ruta_zip in sorted(DATOS.glob("Dataset-*.zip")):
+        with zipfile.ZipFile(ruta_zip) as z:
+            for info in z.infolist():
+                nombre = Path(info.filename).name
+                destino = DATOS / nombre
+                if nombre.endswith(".csv") and not destino.exists():
+                    print(f"Extrayendo {nombre} de {ruta_zip.name}")
+                    with z.open(info) as origen, open(destino, "wb") as salida:
+                        shutil.copyfileobj(origen, salida)
 
 
 def main() -> None:
@@ -135,6 +169,12 @@ def main() -> None:
             raise SystemExit("Fallo la descarga de datos. Revisa el mensaje anterior.")
         if not VENTAS_CSV.exists():
             raise SystemExit(f"Aun no se encuentra el CSV: {VENTAS_CSV}")
+
+    asegurar_maestros()
+    if not SUCURSALES_CSV.exists():
+        # Sin sucursales el LEFT JOIN no falla: marca todo como SIN_MARCA y deja
+        # inservible la particion. Se aborta antes de producir ese dataset.
+        raise SystemExit(f"Falta el maestro de sucursales: {SUCURSALES_CSV}")
 
     DESTINO.parent.mkdir(parents=True, exist_ok=True)
     temp_dir = ROOT / "data" / ".duckdb_tmp"

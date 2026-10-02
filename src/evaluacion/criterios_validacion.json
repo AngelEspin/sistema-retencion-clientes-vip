@@ -1,0 +1,260 @@
+{
+  "declarado": "2026-10-02T14:58:00+09:00",
+  "nota": "Criterios de aceptacion fijados ANTES de ejecutar las pruebas funcionales (infra/pruebas_funcionales.py), la prueba de carga en AWS (infra/prueba_carga.py) y el piloto. Las filas con momento 'D-obs' se fijaron despues de conocer el valor y se reportan solo como evidencia complementaria, no como prueba de aceptacion.",
+  "momentos": {
+    "P": "Declarado en la propuesta de tesis (21/06/2026), antes de cualquier medicion",
+    "D": "Declarado en este documento antes de medir",
+    "D-obs": "Declarado en este documento con el valor ya observado: evidencia complementaria"
+  },
+  "niveles": [
+    {
+      "nivel": "Técnico",
+      "filas": [
+        {
+          "id": "T1",
+          "objetivo": "Anticipar la fuga de clientes VIP",
+          "metrica": "AUC-ROC",
+          "instrumento": "Datos retenidos por tiempo: corte 01/04/2026, etiqueta observada abr–jun 2026, 538 982 VIP nunca vistos en entrenamiento",
+          "linea_base": "Azar (AUC 0,50)",
+          "valida": "Equipo y tutor",
+          "criterio": "AUC ≥ 0,75",
+          "momento": "P",
+          "resultado": "churn.auc"
+        },
+        {
+          "id": "T2",
+          "objetivo": "Superar la regla simple que el negocio ya usa",
+          "metrica": "AUC del modelo − AUC de ordenar por recencia",
+          "instrumento": "Mismo conjunto de prueba que T1",
+          "linea_base": "Ranking por recencia",
+          "valida": "Equipo y tutor",
+          "criterio": "Diferencia ≥ +0,03",
+          "momento": "D-obs",
+          "resultado": "churn.delta_auc"
+        },
+        {
+          "id": "T3",
+          "objetivo": "Probabilidades utilizables por el simulador",
+          "metrica": "|fuga predicha media − fuga observada| (pp)",
+          "instrumento": "Conjunto de prueba hoy; cada recálculo mensual en producción",
+          "linea_base": "Tasa observada del trimestre",
+          "valida": "Equipo (Control Room)",
+          "criterio": "≤ 2 pp; si se excede, recalibrar",
+          "momento": "D-obs",
+          "resultado": "churn.sesgo_calibracion_pp"
+        },
+        {
+          "id": "T4",
+          "objetivo": "Detectar deriva de la población",
+          "metrica": "PSI del score (referencia: entrenamiento)",
+          "instrumento": "Distribución del score en cada corte",
+          "linea_base": "Distribución de entrenamiento",
+          "valida": "Equipo (Control Room)",
+          "criterio": "PSI < 0,10 estable; > 0,25 reentrenar",
+          "momento": "D-obs",
+          "resultado": "churn.psi"
+        },
+        {
+          "id": "T5",
+          "objetivo": "Simulador internamente consistente",
+          "metrica": "Casos de paridad, monotonía, saturación y reproducibilidad aprobados",
+          "instrumento": "infra/pruebas_funcionales.py (grupos paridad y borde)",
+          "linea_base": "Versión anterior del simulador (equivalencia exacta con artefactos previos)",
+          "valida": "Equipo",
+          "criterio": "100 % de casos aprobados",
+          "momento": "D",
+          "resultado": "funcional.paridad_borde"
+        },
+        {
+          "id": "T6",
+          "objetivo": "Medir el efecto sin confundirlo con ruido",
+          "metrica": "Efecto mínimo detectable del piloto (80 % potencia, α = 5 %)",
+          "instrumento": "Cálculo de potencia sobre la lista focalizada real",
+          "linea_base": "Comparación ingenua tratados vs. control de toda la población",
+          "valida": "Equipo y tutor",
+          "criterio": "MDE ≤ 5 % relativo antes de lanzar el piloto",
+          "momento": "D",
+          "resultado": "validacion.mde"
+        }
+      ]
+    },
+    {
+      "nivel": "Funcional",
+      "filas": [
+        {
+          "id": "F1",
+          "objetivo": "Escenarios en tiempo de reunión",
+          "metrica": "Latencia p95 de /v1/simular en caliente (cliente)",
+          "instrumento": "infra/prueba_carga.py, 40 invocaciones a la Lambda",
+          "linea_base": "Meta del guion: < 10 min por escenario",
+          "valida": "Equipo",
+          "criterio": "p95 < 3 s",
+          "momento": "D",
+          "resultado": "aws.caliente_p95",
+          "instrumento_enmendado": "infra/prueba_carga.py contra Lambda en LocalStack (AWS emulado en local), 40 invocaciones"
+        },
+        {
+          "id": "F2",
+          "objetivo": "Primera consulta aceptable",
+          "metrica": "Latencia con arranque en frío forzado (cliente)",
+          "instrumento": "infra/prueba_carga.py, 5 arranques en frío",
+          "linea_base": "—",
+          "valida": "Equipo",
+          "criterio": "máximo < 15 s",
+          "momento": "D",
+          "resultado": "aws.frio_max",
+          "instrumento_enmendado": "infra/prueba_carga.py contra Lambda en LocalStack, 5 arranques en frío forzados"
+        },
+        {
+          "id": "F3",
+          "objetivo": "La nube calcula lo mismo que lo local",
+          "metrica": "Casos con salida idéntica campo por campo",
+          "instrumento": "infra/pruebas_funcionales.py --remoto",
+          "linea_base": "Simulador local",
+          "valida": "Equipo",
+          "criterio": "100 % idénticos",
+          "momento": "D",
+          "resultado": "funcional.paridad_remoto",
+          "instrumento_enmendado": "infra/pruebas_funcionales.py --remoto contra Lambda en LocalStack"
+        },
+        {
+          "id": "F4",
+          "objetivo": "Rechazar entradas inválidas sin caerse",
+          "metrica": "Entradas inválidas con 422 y respuestas 500",
+          "instrumento": "infra/pruebas_funcionales.py (14 casos)",
+          "linea_base": "—",
+          "valida": "Equipo",
+          "criterio": "100 % con 422 y 0 respuestas 500",
+          "momento": "D",
+          "resultado": "funcional.validacion"
+        },
+        {
+          "id": "F5",
+          "objetivo": "Soportar uso simultáneo",
+          "metrica": "Errores con 10 peticiones concurrentes × 3 rondas",
+          "instrumento": "infra/prueba_carga.py",
+          "linea_base": "—",
+          "valida": "Equipo",
+          "criterio": "0 errores",
+          "momento": "D",
+          "resultado": "aws.concurrencia",
+          "instrumento_enmendado": "infra/prueba_carga.py contra Lambda en LocalStack"
+        },
+        {
+          "id": "F6",
+          "objetivo": "No exponer datos de clientes",
+          "metrica": "Código HTTP de una petición sin firma; acceso público al bucket",
+          "instrumento": "infra/prueba_carga.py e infra/desplegar.py",
+          "linea_base": "—",
+          "valida": "Equipo y tutor",
+          "criterio": "403 sin firma; bucket bloqueado",
+          "momento": "D",
+          "resultado": "aws.seguridad",
+          "instrumento_enmendado": "infra/desplegar.py e infra/prueba_carga.py contra LocalStack (Community no aplica IAM)"
+        },
+        {
+          "id": "F7",
+          "objetivo": "Operar dentro del presupuesto",
+          "metrica": "Costo mensual de nube (USD)",
+          "instrumento": "Duración facturada (líneas REPORT) × precios de lista",
+          "linea_base": "Arquitectura del guion: USD 75/mes",
+          "valida": "Equipo",
+          "criterio": "≤ USD 80/mes",
+          "momento": "P",
+          "resultado": "costos.aws_mes",
+          "instrumento_enmendado": "Duración facturada medida en LocalStack × precios de lista de AWS"
+        },
+        {
+          "id": "F8",
+          "objetivo": "Usable por el equipo comercial",
+          "metrica": "Escala SUS",
+          "instrumento": "Encuesta SUS a 5–8 usuarios al cierre del piloto",
+          "linea_base": "Promedio de la escala (68)",
+          "valida": "Usuarios finales",
+          "criterio": "SUS ≥ 70",
+          "momento": "D",
+          "resultado": "pendiente"
+        }
+      ]
+    },
+    {
+      "nivel": "Negocio",
+      "filas": [
+        {
+          "id": "N1",
+          "objetivo": "Confirmar la premisa del proyecto",
+          "metrica": "Ingreso que concentra el 20 % VIP",
+          "instrumento": "RFM sobre los 12 meses (cuentas genéricas excluidas)",
+          "linea_base": "Afirmación del guion",
+          "valida": "Equipo y tutor",
+          "criterio": "Entre 70 % y 80 %",
+          "momento": "P",
+          "resultado": "rfm.concentracion"
+        },
+        {
+          "id": "N2",
+          "objetivo": "Reducir la fuga trimestral VIP",
+          "metrica": "Reducción relativa de la fuga VIP vs. control",
+          "instrumento": "Piloto A/B de un trimestre con holdout dentro de la lista; hoy, simulación",
+          "linea_base": "Grupo de control sin campaña",
+          "valida": "Equipo comercial y tutor",
+          "criterio": "≥ 15 %",
+          "momento": "P",
+          "resultado": "negocio.reduccion"
+        },
+        {
+          "id": "N3",
+          "objetivo": "Retención rentable",
+          "metrica": "Retorno de la campaña (ingreso/gasto y margen/gasto)",
+          "instrumento": "Piloto; hoy, simulación con margen medido por cliente",
+          "linea_base": "No hacer campaña",
+          "valida": "Gerencia comercial y financiera",
+          "criterio": "Ingreso/gasto ≥ 3 (guion) y margen/gasto ≥ 1",
+          "momento": "P",
+          "resultado": "negocio.retorno"
+        },
+        {
+          "id": "N4",
+          "objetivo": "Que el simulador prediga la realidad",
+          "metrica": "|Δ simulada − Δ observada| / Δ observada",
+          "instrumento": "Piloto (o backtest con campañas reales)",
+          "linea_base": "Δ observada en el piloto",
+          "valida": "Equipo y tutor",
+          "criterio": "< 20 %",
+          "momento": "P",
+          "resultado": "pendiente"
+        },
+        {
+          "id": "N5",
+          "objetivo": "Que decidir con el sistema rinda más que la práctica actual",
+          "metrica": "Margen incremental: lista del sistema vs. lista aleatoria con el mismo gasto",
+          "instrumento": "Piloto con un brazo de focalización aleatoria; hoy, simulación pareada",
+          "linea_base": "Campaña masiva (práctica actual)",
+          "valida": "Equipo comercial y tutor",
+          "criterio": "≥ 2 veces el margen de la masiva",
+          "momento": "D-obs",
+          "resultado": "negocio.vs_masiva"
+        },
+        {
+          "id": "N6",
+          "objetivo": "Adopción real",
+          "metrica": "Campañas del trimestre diseñadas con el simulador",
+          "instrumento": "Registro de uso de la API",
+          "linea_base": "0 % (hoy)",
+          "valida": "Gerencia comercial",
+          "criterio": "≥ 80 %",
+          "momento": "D",
+          "resultado": "pendiente"
+        }
+      ]
+    }
+  ],
+  "enmiendas": [
+    {
+      "fecha": "2026-10-02T15:43:48+09:00",
+      "motivo": "Se perdio el acceso a AWS Academy Learner Lab. Las pruebas en la nube se ejecutan contra AWS emulado en local: LocalStack 4.14.0 Community en Docker sobre WSL2.",
+      "alcance": "Cambia solo el instrumento de F1, F2, F3, F5, F6 y F7; los umbrales de aceptacion no cambian. Se registra antes de cualquier medicion en LocalStack.",
+      "limitaciones": "LocalStack emula la API, el ciclo de vida (contenedor efimero por entorno, arranque en frio) y S3, pero la duracion refleja el CPU local y no el de AWS; LocalStack Community no aplica politicas IAM (F6 solo puede verificar la configuracion) ni capas de Lambda (las dependencias viajan en el paquete)."
+    }
+  ]
+}
