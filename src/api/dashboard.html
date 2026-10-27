@@ -2,383 +2,1434 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Simulador de Retencion VIP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Simulador de Retención VIP</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-  :root { --azul:#2563eb; --verde:#16a34a; --rojo:#dc2626; --ambar:#d97706; --fondo:#f8fafc; --tarjeta:#fff; --borde:#e2e8f0; --texto:#1e293b; --gris:#64748b; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--fondo); color:var(--texto); line-height:1.5; }
-  header { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; padding:24px 32px; }
-  header h1 { font-size:22px; font-weight:700; }
-  header p { font-size:14px; opacity:.9; margin-top:4px; }
-  header .meta { font-size:12px; opacity:.85; margin-top:6px; }
-  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:11px; font-weight:600; margin-left:6px; vertical-align:middle; }
-  .badge.aws { background:#232f3e; color:#ff9900; }
-  .badge.local { background:rgba(255,255,255,.2); color:#fff; }
-  main { max-width:1150px; margin:24px auto; padding:0 16px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
-  .tarjeta { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:16px 20px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .tarjeta .etiqueta { font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--gris); font-weight:600; }
-  .tarjeta .valor { font-size:24px; font-weight:700; margin-top:6px; }
-  .tarjeta .sub { font-size:12px; color:var(--gris); margin-top:2px; }
-  .seccion { margin-bottom:28px; }
-  .seccion h2 { font-size:17px; font-weight:700; margin-bottom:6px; }
-  .seccion > p.desc { font-size:13px; color:var(--gris); margin-bottom:14px; }
-  .tarjetas-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-  @media (max-width:760px){ .tarjetas-2{grid-template-columns:1fr;} }
-  form.dos { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
-  form.tres { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-  @media (max-width:640px){ form.dos,form.tres{grid-template-columns:1fr;} }
-  .campo { display:flex; flex-direction:column; gap:4px; }
-  .campo label { font-size:13px; font-weight:600; color:var(--gris); }
-  .campo input, .campo select { padding:9px 12px; border:1px solid var(--borde); border-radius:8px; font-size:14px; }
-  .campo .ayuda { font-size:11px; color:var(--gris); }
-  button { padding:10px 16px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:filter .15s; }
-  button.primario { background:var(--azul); color:#fff; }
-  button.primario:hover { filter:brightness(1.1); }
-  button.secundario { background:#e2e8f0; color:var(--texto); }
-  .barra-accion { margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .resultado { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:16px; margin-top:16px; }
-  .metrias { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:12px; }
-  .metria { background:#f1f5f9; border-radius:8px; padding:10px 14px; }
-  .metria .m1 { font-size:11px; text-transform:uppercase; color:var(--gris); font-weight:600; }
-  .metria .m2 { font-size:20px; font-weight:700; }
-  .metria .m3 { font-size:12px; color:var(--gris); }
-  .tabla { width:100%; border-collapse:collapse; font-size:13px; }
-  .tabla th { text-align:left; padding:8px 10px; background:#f1f5f9; font-weight:600; color:var(--gris); }
-  .tabla td { padding:7px 10px; border-bottom:1px solid var(--borde); }
-  .tabla tr.destacado td { background:#eff6ff; font-weight:600; }
-  .pos { color:var(--verde); }
-  .neg { color:var(--rojo); }
-  .aviso { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:14px; }
-  .carga { display:none; color:var(--gris); font-size:13px; margin-top:8px; }
-  .carga.visible { display:block; }
-  .footer { text-align:center; color:var(--gris); font-size:12px; margin:30px 0 20px; }
-  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-  .tag.ok { background:#dcfce7; color:#166534; }
-  .tag.no { background:#fee2e2; color:#991b1b; }
-  .tag.amber { background:#fef3c7; color:#92400e; }
+/* Tablero de decision: banda institucional arriba, navegacion fija por secciones
+   y tarjetas de grafico en pares. Colores de la defensa: azul FIEC y naranja solo
+   para la saturacion. Paleta de series validada para daltonismo (azul, aqua). */
+:root {
+  --bg: #f3f6f7; --surface: #ffffff; --surface-2: #edf2f4;
+  --ink: #10232d; --ink-2: #3f535d; --muted: #5d6e78;
+  --line: #dbe3e7; --grid: #e8edf0; --axis: #b9c6cc;
+  --band: #1b3f52; --band-ink: #f4f8fa; --band-ink-2: #b8d0dc; --accent: #23698f; --focus: #2a78d6;
+  --s1: #2a78d6; --s2: #1baf7a; --sat: #c2501a; --base: #9fadb4;
+  --o1: #86b6ef; --o2: #2a78d6; --o3: #104281;
+  --d-neg: #e34948; --d-pos: #2a78d6;
+  --ok: #0b7a33; --ok-bg: #e2f3e7; --mal: #b02a24; --mal-bg: #fbe6e4;
+  --aviso: #8a5300; --aviso-bg: #fcefd6; --sim: #1d4f99; --sim-bg: #e5edfa;
+  --sombra: 0 1px 2px rgba(16, 35, 45, .06);
+  --f-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c151a; --surface: #15212a; --surface-2: #1b2a34;
+    --ink: #e7eef1; --ink-2: #b2c1c8; --muted: #8d9ea7;
+    --line: #26353f; --grid: #22313a; --axis: #3b4b55;
+    --band: #0f2a38; --band-ink: #eef5f8; --band-ink-2: #9fbccb; --accent: #6fb0d6; --focus: #5aa2ef;
+    --s1: #3987e5; --s2: #199e70; --sat: #e0703a; --base: #5f6f78;
+    --o1: #1c5cab; --o2: #3987e5; --o3: #9ec5f4;
+    --d-neg: #e66767; --d-pos: #3987e5;
+    --ok: #5fd07f; --ok-bg: #163223; --mal: #ff8a80; --mal-bg: #3a1c1a;
+    --aviso: #f2b85b; --aviso-bg: #3a2c12; --sim: #9cc1ff; --sim-bg: #1a2a45;
+    --sombra: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c151a; --surface: #15212a; --surface-2: #1b2a34;
+  --ink: #e7eef1; --ink-2: #b2c1c8; --muted: #8d9ea7;
+  --line: #26353f; --grid: #22313a; --axis: #3b4b55;
+  --band: #0f2a38; --band-ink: #eef5f8; --band-ink-2: #9fbccb; --accent: #6fb0d6; --focus: #5aa2ef;
+  --s1: #3987e5; --s2: #199e70; --sat: #e0703a; --base: #5f6f78;
+  --o1: #1c5cab; --o2: #3987e5; --o3: #9ec5f4;
+  --d-neg: #e66767; --d-pos: #3987e5;
+  --ok: #5fd07f; --ok-bg: #163223; --mal: #ff8a80; --mal-bg: #3a1c1a;
+  --aviso: #f2b85b; --aviso-bg: #3a2c12; --sim: #9cc1ff; --sim-bg: #1a2a45;
+  --sombra: none;
+  color-scheme: dark;
+}
 
-  /* Barras de cohortes */
-  .cohortes { margin-top:12px; }
-  .cohorte { margin-bottom:14px; }
-  .cohorte .cabecera { display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--gris); }
-  .cohorte .cabecera strong { color:var(--texto); }
-  .pista { position:relative; height:22px; background:#f1f5f9; border-radius:6px; overflow:hidden; display:flex; }
-  .pista .seg { height:100%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:700; white-space:nowrap; }
-  .seg.seg-salvado { background:var(--verde); }
-  .seg.seg-control { background:#94a3b8; }
-  .seg.seg-saturado { background:var(--ambar); }
-  .seg.seg-fuga { background:var(--rojo); }
-  .leyenda { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; margin-top:14px; color:var(--gris); }
-  .leyenda span i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:middle; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-padding-top: 64px; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--f-sans); -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--bg);
+}
+.gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.ancho { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-  /* Arquitectura */
-  .arquitectura { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; line-height:1.35; overflow-x:auto; padding:6px; }
-  .arq-fila { display:flex; align-items:center; gap:6px; margin:4px 0; }
-  .chip { background:#f1f5f9; border:1px solid var(--borde); border-radius:8px; padding:6px 12px; min-width:120px; text-align:center; font-size:12px; }
-  .chip.aws { border-color:#ff9900; background:#fff7ed; color:#7c2d12; }
-  .chip.local { border-color:var(--azul); background:#eff6ff; color:#1e3a8a; }
-  .flecha { color:var(--gris); }
-  .pasos { margin:6px 0 6px 0; }
-  .paso { border-left:3px solid var(--borde); padding:4px 0 4px 12px; margin-left:8px; }
-  .paso.aws { border-left-color:#ff9900; }
-  .paso.local { border-left-color:var(--azul); }
-  .paso b { font-size:12px; }
-  .paso p { font-size:12px; color:var(--gris); margin-top:2px; }
+/* Banda institucional */
+.banda { background: var(--band); color: var(--band-ink); }
+.banda .ancho { padding-block: 28px 24px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; }
+.banda .ceja { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--band-ink-2); font-weight: 600; }
+.banda h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.15; font-weight: 700; margin-top: 6px; }
+.banda .tesis { color: var(--band-ink-2); max-width: 62ch; margin: 8px 0 0; font-size: 15px; }
+.banda .autores { font-size: 13px; color: var(--band-ink-2); margin-top: 10px; }
+.modo { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; font-size: 13px; color: var(--band-ink-2); min-width: 0; }
+.pastilla-modo { display: inline-flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, var(--band-ink) 30%, transparent); border-radius: 999px; padding: 4px 12px; color: var(--band-ink); font-weight: 600; }
+.pastilla-modo i { width: 8px; height: 8px; border-radius: 50%; background: var(--band-ink-2); }
+.pastilla-modo.vivo i { background: #5fd07f; }
+
+/* Navegacion de secciones */
+nav.secciones { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+nav.secciones .ancho { display: flex; gap: 4px; overflow-x: auto; padding-block: 8px; scrollbar-width: thin; }
+nav.secciones a { white-space: nowrap; text-decoration: none; color: var(--ink-2); font-size: 14px; padding: 6px 12px; border-radius: 6px; }
+nav.secciones a:hover { background: var(--surface-2); color: var(--ink); }
+
+main .ancho { display: flex; flex-direction: column; gap: 44px; padding-block: 28px 40px; }
+section.bloque { display: flex; flex-direction: column; gap: 16px; }
+.bloque > header { display: flex; flex-direction: column; gap: 4px; }
+.bloque .ceja { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.bloque h2 { font-size: 24px; line-height: 1.25; }
+.bloque .entrada { color: var(--ink-2); max-width: 75ch; margin: 2px 0 0; }
+
+.par { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) { .par { grid-template-columns: 1fr 1fr; } .par.ancho-izq { grid-template-columns: 3fr 2fr; } }
+.par > * { min-width: 0; }
+
+.carta { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; box-shadow: var(--sombra); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.carta h3 { font-size: 16px; line-height: 1.3; }
+.carta .sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.carta .lectura { color: var(--ink-2); font-size: 14px; margin: 0; }
+.carta .fuente { color: var(--muted); font-size: 12px; margin: 0; }
+.lienzo { width: 100%; min-height: 40px; }
+.lienzo svg { display: block; font-family: var(--f-sans); overflow: visible; }
+.lienzo svg:focus { outline: none; }
+.lienzo svg:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 4px; }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.leyenda i.caja { width: 11px; height: 11px; border-radius: 3px; }
+
+details.tabla-vista summary { cursor: pointer; color: var(--accent); font-size: 13px; width: fit-content; }
+.tabla-env { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 6px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Cifras */
+.cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.cifra { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cifra .etiqueta { font-size: 13px; color: var(--muted); }
+.cifra .valor { font-size: 24px; font-weight: 650; line-height: 1.2; letter-spacing: -.01em; white-space: nowrap; }
+.cifra .detalle { font-size: 12.5px; color: var(--ink-2); }
+.cifra.positivo .valor { color: var(--ok); }
+.cifra.negativo .valor { color: var(--mal); }
+.carta .cifras .cifra { background: var(--surface-2); border-color: transparent; }
+
+.estado { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.estado.ok { color: var(--ok); background: var(--ok-bg); }
+.estado.mal { color: var(--mal); background: var(--mal-bg); }
+.estado.aviso { color: var(--aviso); background: var(--aviso-bg); }
+.estado.sim { color: var(--sim); background: var(--sim-bg); }
+
+.nota-supuesto { border-left: 3px solid var(--sat); background: var(--surface-2); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; color: var(--ink-2); margin: 0; }
+.nota-supuesto b { color: var(--ink); }
+
+/* Datos */
+.hechos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 14px 18px; margin: 0; }
+.hechos div { display: flex; flex-direction: column; min-width: 0; }
+.hechos dt { font-size: 12.5px; color: var(--muted); order: 2; }
+.hechos dd { margin: 0; font-size: 20px; font-weight: 650; order: 1; }
+
+/* Linea de tiempo de la validacion temporal */
+.tiempo { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px 12px; align-items: center; font-size: 13px; }
+.tiempo .quien { color: var(--ink-2); line-height: 1.3; }
+.tiempo .quien b { color: var(--ink); display: block; }
+.pista { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; height: 30px; }
+.pista span { min-width: 0; text-overflow: ellipsis; }
+.pista span { border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; white-space: nowrap; overflow: hidden; }
+.pista .var { background: var(--o1); color: #0b2440; }
+.pista .eti { background: var(--o3); color: #ffffff; }
+:root[data-theme="dark"] .pista .var { color: #ffffff; }
+:root[data-theme="dark"] .pista .eti { color: #0b2440; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pista .var { color: #ffffff; }
+  :root:not([data-theme="light"]) .pista .eti { color: #0b2440; }
+}
+.meses { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size: 11px; color: var(--muted); overflow: hidden; }
+@media (max-width: 560px) { .tiempo { grid-template-columns: 1fr; } .tiempo > div:empty { display: none; } }
+
+/* Controles */
+.controles { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+.control { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.control > label, .control > span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+select { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 7px 10px; min-width: 0; max-width: 100%; }
+.segmentos { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; max-width: 100%; flex-wrap: wrap; }
+.segmentos button { font: inherit; font-size: 14px; background: var(--surface); color: var(--ink-2); border: 0; border-right: 1px solid var(--line); padding: 7px 12px; cursor: pointer; }
+.segmentos button:last-child { border-right: 0; }
+.segmentos button[aria-pressed="true"] { background: var(--band); color: var(--band-ink); font-weight: 600; }
+.segmentos button:hover:not([aria-pressed="true"]) { background: var(--surface-2); }
+
+.resultado { display: flex; flex-direction: column; gap: 16px; transition: opacity .2s; }
+.resultado[aria-busy="true"] { opacity: .55; }
+.veredicto { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-size: 15px; }
+.veredicto p { margin: 0; flex: 1 1 320px; color: var(--ink-2); }
+.veredicto p b { color: var(--ink); }
+
+.aviso-error { background: var(--mal-bg); color: var(--mal); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+
+/* Arquitectura */
+.arq { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 900px) { .arq { grid-template-columns: 1fr 1fr; } }
+.carril { display: flex; flex-direction: column; gap: 8px; }
+.carril h3 { font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.paso { border-left: 3px solid var(--axis); padding: 4px 0 4px 12px; }
+.paso b { font-size: 14px; }
+.paso p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.paso.nube { border-left-color: var(--sat); }
+.etiqueta-entorno { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+
+footer.pie { border-top: 1px solid var(--line); }
+footer.pie .ancho { padding-block: 18px 28px; font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+
+/* Ayuda emergente de los graficos */
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .14); padding: 8px 10px; font-size: 12.5px; max-width: 280px; }
+#tip .tip-t { color: var(--muted); margin-bottom: 4px; }
+#tip .tip-f { display: flex; align-items: baseline; gap: 6px; }
+#tip .tip-f i { width: 12px; height: 3px; border-radius: 2px; flex: none; align-self: center; }
+#tip .tip-f b { font-variant-numeric: tabular-nums; }
+#tip .tip-f span { color: var(--ink-2); }
+
+/* Marcas SVG */
+.rejilla { stroke: var(--grid); stroke-width: 1; }
+.eje { stroke: var(--axis); stroke-width: 1; }
+.tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.titulo-eje { fill: var(--muted); font-size: 11.5px; }
+.ref { stroke: var(--ink-2); stroke-width: 1; }
+.ref-t { fill: var(--ink-2); font-size: 11.5px; }
+.linea { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.punto { stroke: var(--surface); stroke-width: 2; }
+.etq { fill: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.etq-fuerte { fill: var(--ink); font-size: 12.5px; font-weight: 600; }
+.cat { fill: var(--ink-2); font-size: 12.5px; }
+.cruz { stroke: var(--muted); stroke-width: 1; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Simulador de Retencion VIP <span class="badge local">LOCAL</span><span class="badge aws">AWS SERVERLESS</span></h1>
-  <p>Sistema multiagente para segmentacion de clientes y optimizacion de retencion</p>
-  <div class="meta" id="cabecera-meta">Cargando...</div>
-</header>
-<main>
-  <div class="aviso" id="aviso-inicio" style="display:none"></div>
 
-  <div class="grid" id="grid-resumen"></div>
-
-  <section class="seccion">
-    <h2>Los agentes en vivo</h2>
-    <p class="desc">La poblacion de <strong id="pob-cantidad">--</strong> clientes VIP se resuelve de forma vectorizada (por eso tarda segundos, no horas). Este panel muestra su distribucion por riesgo de fuga y consumo.</p>
-    <div class="tarjetas-2">
-      <div class="tarjeta">
-        <div class="etiqueta">Deciles de riesgo de fuga</div>
-        <div class="cohortes" id="pob-riesgo"></div>
-      </div>
-      <div class="tarjeta">
-        <div class="etiqueta">Distribucion del valor</div>
-        <div class="cohortes" id="pob-valor"></div>
-      </div>
+<div class="banda gutter" id="inicio">
+  <div class="ancho">
+    <div>
+      <div class="ceja">Maestría en Ciencia de Datos · ESPOL · FIEC</div>
+      <h1>Simulador de Retención VIP</h1>
+      <p class="tesis">Sistema multiagente para segmentar clientes y estimar, antes de gastar, el efecto de una campaña de retención en una cadena de farmacias ecuatoriana.</p>
+      <div class="autores">Angel Josué Espín Lumbano · Carlos Alberto Ramírez Celi · Tutor: Allan Roberto Avendaño Sudario</div>
     </div>
-  </section>
+    <div class="modo">
+      <span class="pastilla-modo" id="pastilla-modo"><i></i><span id="modo-texto">Cargando…</span></span>
+      <span id="modo-detalle"></span>
+    </div>
+  </div>
+</div>
 
-  <section class="seccion">
-    <h2>Simular una campana <small style="font-weight:400;color:var(--gris);font-size:13px">ver a los agentes reaccionar</small></h2>
-    <div class="tarjeta">
-      <form class="dos" id="form-simular">
-        <div class="campo" style="grid-column:1/-1">
-          <label>Nombre del escenario</label>
-          <input type="text" id="s-nombre" value="campana_demo">
-        </div>
-        <div class="campo">
-          <label>Presupuesto (USD)</label>
-          <input type="number" id="s-presupuesto" value="5000" min="1" step="500">
-        </div>
-        <div class="campo">
-          <label>Costo por promocion (USD)</label>
-          <input type="number" id="s-costo" value="1.20" min="0.01" step="0.1">
-        </div>
-        <div class="campo">
-          <label>Promociones por cliente</label>
-          <select id="s-promos">
-            <option value="1">1 - conservador</option>
-            <option value="2" selected>2 - equilibrado</option>
-            <option value="3">3 - agresivo</option>
-            <option value="4">4 - muy agresivo</option>
-            <option value="5">5</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>Criterio de seleccion</label>
-          <select id="s-criterio">
-            <option value="valor_en_riesgo" selected>Valor en riesgo (recomendado)</option>
-            <option value="riesgo">Mayor riesgo de fuga</option>
-            <option value="valor">Mayor valor historico</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>% de control</label>
-          <input type="number" id="s-control" value="0.10" min="0" max="0.5" step="0.05">
-        </div>
-      </form>
-      <div class="barra-accion">
-        <button class="primario" onclick="simularCampana()">Simular campana</button>
-        <span class="carga" id="carga-simular">Simulando... medio millon de agentes</span>
+<nav class="secciones gutter" aria-label="Secciones">
+  <div class="ancho">
+    <a href="#resumen">Resumen</a>
+    <a href="#problema">El problema</a>
+    <a href="#modelo">Modelo</a>
+    <a href="#simulador">Simulador</a>
+    <a href="#campana">La campaña</a>
+    <a href="#sistema">El sistema</a>
+    <a href="#validacion">Validación</a>
+    <a href="#arquitectura">Arquitectura</a>
+  </div>
+</nav>
+
+<main class="gutter">
+  <div class="ancho">
+    <div class="aviso-error" id="error-general" hidden></div>
+
+    <section class="bloque" id="resumen">
+      <header>
+        <span class="ceja">Resumen</span>
+        <h2>Qué se midió y qué se simuló</h2>
+        <p class="entrada">Las cifras medidas salen del histórico real de doce meses. Las de la campaña son simuladas y dependen del efecto de una promoción, que el histórico no permite estimar.</p>
+      </header>
+      <div class="cifras" id="cifras-resumen"></div>
+    </section>
+
+    <section class="bloque" id="problema">
+      <header>
+        <span class="ceja">El problema</span>
+        <h2>Pocos clientes sostienen la cadena</h2>
+        <p class="entrada" id="problema-entrada"></p>
+      </header>
+      <div class="par ancho-izq">
+        <article class="carta">
+          <div>
+            <h3>Concentración del ingreso por cliente</h3>
+            <p class="sub">Porcentaje acumulado del ingreso según el porcentaje de clientes, ordenados de mayor a menor gasto.</p>
+          </div>
+          <div class="leyenda" id="ley-lorenz"></div>
+          <div class="lienzo" id="g-lorenz"></div>
+          <details class="tabla-vista" id="t-lorenz"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+          <p class="fuente">Figura 1 del capítulo 2. Fuente: segmentación RFM al 01/07/2026, sin las cuentas genéricas.</p>
+        </article>
+        <article class="carta">
+          <h3>El histórico procesado</h3>
+          <dl class="hechos" id="hechos-datos"></dl>
+          <p class="lectura" id="datos-calidad"></p>
+          <div>
+            <h3 style="font-size:14px">Tiempo de cada etapa del pipeline</h3>
+            <p class="sub">Re-ejecución completa del 02/10/2026, en un portátil.</p>
+          </div>
+          <div class="lienzo" id="g-etapas"></div>
+          <details class="tabla-vista" id="t-etapas"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
       </div>
-      <div id="resultado-simular"></div>
-    </div>
-  </section>
+    </section>
 
-  <section class="seccion">
-    <h2>Barrido de presupuestos <small style="font-weight:400;color:var(--gris);font-size:13px">cuanto gastar para mover la aguja</small></h2>
-    <div class="tarjeta">
-      <form class="tres" id="form-barrido">
-        <div class="campo">
-          <label>Promociones por cliente</label>
-          <select id="b-promos">
-            <option value="1">1</option>
-            <option value="2" selected>2</option>
-            <option value="3">3</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>Criterio</label>
-          <select id="b-criterio">
-            <option value="valor_en_riesgo" selected>Valor en riesgo</option>
-            <option value="riesgo">Riesgo</option>
-            <option value="valor">Valor</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label>Presupuestos (USD)</label>
-          <input type="text" id="b-presupuestos" value="5000, 25000, 50000, 100000, 250000, 500000, 1000000">
-        </div>
-      </form>
-      <div class="barra-accion">
-        <button class="primario" onclick="barrido()">Ejecutar barrido</button>
-        <span class="carga" id="carga-barrido">Simulando...</span>
+    <section class="bloque" id="modelo">
+      <header>
+        <span class="ceja">Modelo de abandono</span>
+        <h2>Quién se va: validación temporal</h2>
+        <p class="entrada">Las variables se calculan solo con información anterior al corte y la fuga se observa en los 90 días siguientes. El modelo se prueba con un trimestre que nunca vio.</p>
+      </header>
+      <article class="carta">
+        <h3>Diseño de la validación temporal</h3>
+        <div class="tiempo" id="linea-tiempo"></div>
+        <p class="fuente">Figura 3 del capítulo 2. Cada barra muestra el periodo de cálculo de las variables y, a continuación, el trimestre en que se observa la fuga.</p>
+      </article>
+      <div class="cifras" id="cifras-modelo"></div>
+      <div class="par">
+        <article class="carta">
+          <div>
+            <h3>Curva ROC: modelo frente a la regla de recencia</h3>
+            <p class="sub">Conjunto de prueba (abril a junio de 2026).</p>
+          </div>
+          <div class="leyenda" id="ley-roc"></div>
+          <div class="lienzo" id="g-roc"></div>
+          <details class="tabla-vista" id="t-roc"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
+        <article class="carta">
+          <div>
+            <h3>Calibración por decil de riesgo</h3>
+            <p class="sub">Fuga predicha frente a fuga observada en cada decil.</p>
+          </div>
+          <div class="leyenda" id="ley-cal"></div>
+          <div class="lienzo" id="g-cal"></div>
+          <p class="lectura" id="lectura-cal"></p>
+          <details class="tabla-vista" id="t-cal"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
       </div>
-      <div id="resultado-barrido"></div>
-    </div>
-  </section>
+    </section>
 
-  <section class="seccion">
-    <h2>Arquitectura <span class="tag ok">LOCAL = + AWS</span></h2>
-    <p class="desc">El mismo nucleo corre en dos vias. La API local (FastAPI) sirve este dashboard para explorar; la version serverless (AWS Lambda + S3) ejecuta el mismo simulador sin un servidor encendido 24/7, con coste cero en reposo.</p>
-    <div class="tarjeta">
-      <div class="arquitectura" id="arq"></div>
-    </div>
-  </section>
+    <section class="bloque" id="simulador">
+      <header>
+        <span class="ceja">Simulador basado en agentes</span>
+        <h2>Probar una campaña antes de gastar</h2>
+        <p class="entrada" id="simulador-entrada"></p>
+      </header>
+      <div class="controles" id="controles">
+        <div class="control"><label for="c-presupuesto">Presupuesto por trimestre</label><select id="c-presupuesto"></select></div>
+        <div class="control"><span id="l-promos">Promociones por cliente</span><div class="segmentos" id="c-promos" role="group" aria-labelledby="l-promos"></div></div>
+        <div class="control"><label for="c-criterio">A quién dirigirla</label><select id="c-criterio"></select></div>
+        <div class="control"><span id="l-efecto">Efecto de una promoción</span><div class="segmentos" id="c-efecto" role="group" aria-labelledby="l-efecto"></div></div>
+      </div>
+      <div class="resultado" id="resultado" aria-live="polite">
+        <div class="cifras" id="cifras-sim"></div>
+        <div class="veredicto" id="veredicto"></div>
+        <div class="par">
+          <article class="carta">
+            <div>
+              <h3>Reducción de la fuga según el presupuesto</h3>
+              <p class="sub" id="sub-curva-r"></p>
+            </div>
+            <div class="lienzo" id="g-curva-r"></div>
+            <details class="tabla-vista" id="t-curva"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+          </article>
+          <article class="carta">
+            <div>
+              <h3>Beneficio neto según el presupuesto</h3>
+              <p class="sub">Margen retenido menos gasto de la campaña, frente a no hacer nada.</p>
+            </div>
+            <div class="lienzo" id="g-curva-b"></div>
+          </article>
+        </div>
+        <article class="carta">
+          <div>
+            <h3>Cómo responde cada decil de riesgo</h3>
+            <p class="sub">Clientes salvados y clientes saturados en este escenario, por decil de probabilidad de fuga.</p>
+          </div>
+          <div class="leyenda" id="ley-cohortes"></div>
+          <div class="lienzo" id="g-cohortes"></div>
+          <details class="tabla-vista" id="t-cohortes"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
+      </div>
+      <div class="par">
+        <article class="carta">
+          <div>
+            <h3>Reducción del riesgo de un agente según las promociones</h3>
+            <p class="sub" id="sub-efecto"></p>
+          </div>
+          <div class="leyenda" id="ley-efecto"></div>
+          <div class="lienzo" id="g-efecto"></div>
+          <details class="tabla-vista" id="t-efecto"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+          <p class="fuente">Figura 4 del capítulo 2 (ecuación 2.8).</p>
+        </article>
+        <article class="carta">
+          <div>
+            <h3>Saturación con presupuesto fijo</h3>
+            <p class="sub">Retorno sobre margen con USD 5 000 y el efecto 0,35 del guion, variando solo la insistencia.</p>
+          </div>
+          <div class="lienzo" id="g-saturacion"></div>
+          <p class="nota-supuesto" id="nota-saturacion"></p>
+        </article>
+      </div>
+    </section>
 
-  <div class="footer">API de escenarios &middot; <a href="/docs">/docs</a> (documentacion tecnica) &middot; nucleo vectorizado sobre <strong>538,983</strong> agentes</div>
+    <section class="bloque" id="campana">
+      <header>
+        <span class="ceja">La campaña</span>
+        <h2>A quién dirigirla y cuánto gastar</h2>
+        <p class="entrada">Con el mismo presupuesto, la regla de selección cambia el margen que se retiene. El tamaño que conviene depende del efecto real de una promoción.</p>
+      </header>
+      <article class="carta">
+        <div>
+          <h3>Margen retenido por trimestre según la regla de selección</h3>
+          <p class="sub" id="sub-politicas"></p>
+        </div>
+        <div class="lienzo" id="g-politicas"></div>
+        <p class="lectura" id="lectura-politicas"></p>
+        <details class="tabla-vista" id="t-politicas"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+      </article>
+      <div class="par">
+        <article class="carta">
+          <div>
+            <h3>Beneficio neto de la campaña según el presupuesto</h3>
+            <p class="sub">Frente a no hacer nada, para los tres valores del efecto.</p>
+          </div>
+          <div class="leyenda" id="ley-economia"></div>
+          <div class="lienzo" id="g-economia-b"></div>
+          <details class="tabla-vista" id="t-economia"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
+        <article class="carta">
+          <div>
+            <h3>Reducción de la fuga VIP según el presupuesto</h3>
+            <p class="sub">La línea horizontal marca la meta de −15 % de la propuesta.</p>
+          </div>
+          <div class="lienzo" id="g-economia-r"></div>
+        </article>
+      </div>
+      <p class="nota-supuesto" id="lectura-campana"></p>
+    </section>
+
+    <section class="bloque" id="sistema">
+      <header>
+        <span class="ceja">El sistema</span>
+        <h2>¿Se justifica el sistema frente a la práctica actual?</h2>
+        <p class="entrada">Horizonte de tres años. El beneficio es el margen adicional de decidir con el sistema frente a la campaña masiva actual, con el mismo presupuesto.</p>
+      </header>
+      <div class="controles">
+        <div class="control"><span id="l-escenario">Escenario</span><div class="segmentos" id="c-escenario" role="group" aria-labelledby="l-escenario"></div></div>
+      </div>
+      <div class="cifras" id="cifras-sistema"></div>
+      <div class="par">
+        <article class="carta">
+          <div>
+            <h3>Flujo neto acumulado</h3>
+            <p class="sub" id="sub-flujo"></p>
+          </div>
+          <div class="lienzo" id="g-flujo"></div>
+          <details class="tabla-vista" id="t-flujo"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
+        <article class="carta">
+          <div>
+            <h3>VPN del sistema según el efecto de una promoción</h3>
+            <p class="sub">El resto de los supuestos en su valor realista.</p>
+          </div>
+          <div class="leyenda" id="ley-vpn"></div>
+          <div class="lienzo" id="g-vpn"></div>
+          <p class="lectura" id="lectura-vpn"></p>
+          <details class="tabla-vista" id="t-vpn"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+        </article>
+      </div>
+      <article class="carta">
+        <div>
+          <h3>Qué supuestos mueven el VPN</h3>
+          <p class="sub">Cada supuesto llevado a su valor pesimista y optimista, con el resto en el escenario realista.</p>
+        </div>
+        <div class="leyenda" id="ley-tornado"></div>
+        <div class="lienzo" id="g-tornado"></div>
+        <details class="tabla-vista" id="t-tornado"><summary>Ver datos</summary><div class="tabla-env"></div></details>
+      </article>
+    </section>
+
+    <section class="bloque" id="validacion">
+      <header>
+        <span class="ceja">Validación</span>
+        <h2>Lo que nos propusimos y lo que medimos</h2>
+        <p class="entrada">Criterios registrados antes de las pruebas. Las filas marcadas como simuladas solo las confirma el piloto.</p>
+      </header>
+      <article class="carta">
+        <div class="tabla-env" id="tabla-criterios"></div>
+      </article>
+      <article class="carta">
+        <div>
+          <h3>Efecto mínimo detectable del piloto</h3>
+          <p class="sub" id="sub-piloto"></p>
+        </div>
+        <div class="lienzo" id="g-piloto"></div>
+        <p class="lectura" id="lectura-piloto"></p>
+      </article>
+    </section>
+
+    <section class="bloque" id="arquitectura">
+      <header>
+        <span class="ceja">Arquitectura</span>
+        <h2>Dos flujos: preparar una vez al mes, consultar en segundos</h2>
+        <p class="entrada" id="arq-entrada"></p>
+      </header>
+      <article class="carta">
+        <div class="arq" id="arq"></div>
+      </article>
+    </section>
+  </div>
 </main>
 
+<footer class="pie gutter">
+  <div class="ancho" id="pie"></div>
+</footer>
+
+<div id="tip" role="status" hidden></div>
+
+<!--DATOS_ESTATICOS-->
 <script>
-const fmtMoney = n => n == null ? '-' : '$' + Number(n).toLocaleString('es-EC', {maximumFractionDigits:0});
-const fmtNum = n => n == null ? '-' : Number(n).toLocaleString('es-EC');
-const fmtPct = n => n == null ? '-' : Number(n).toFixed(2) + '%';
-const ARQ_HTML = `
-<div class="pasos">
-  <div class="paso local"><b>1 · Datos crudos (local)</b><p>CSV 22.2 GB · DuckDB en streaming → Parquet particionado 1.25 GB (compresion 17.8x)</p></div>
-  <div class="paso local"><b>2 · RFM + VIP</b><p>3.1M clientes · segmento VIP = top 20% · concentra 82.63% del ingreso</p></div>
-  <div class="paso local"><b>3 · Modelo de abandono</b><p>Validacion temporal · AUC 0.874 · probabilidad de fuga por cliente</p></div>
-  <div class="paso local"><b>4 · Simulador multiagente</b><p>Mesa/vectorizado · 538,983 agentes, cada uno con su riesgo y gasto · contrafactual control vs tratamiento · saturacion a las 3 promos</p></div>
-  <div class="paso local"><b>5 · FastAPI local (este dashboard)</b><p>Exploracion interactiva · respuestas en 1-3 s</p></div>
-  <div class="paso aws"><b>6 · AWS Lambda + S3 (serverless)</b><p>Misma logica importada en lambda_handler · poblacion cacheada en el arranque en frio · coste cero en reposo · invocable via SDK/IAM o Function URL</p></div>
-</div>
-`;
-document.getElementById('arq').innerHTML = ARQ_HTML;
+'use strict';
 
-function tarjeta(etiqueta, valor, sub='') {
-  return `<div class="tarjeta"><div class="etiqueta">${etiqueta}</div><div class="valor">${valor}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
-}
+/* ---------- Fuente de datos: API local en vivo o grilla incrustada ---------- */
+const NODO_ESTATICO = document.getElementById('datos-estaticos');
+const ESTATICO = NODO_ESTATICO ? JSON.parse(NODO_ESTATICO.textContent) : null;
 
-async function api(ruta, opciones={}) {
+async function api(ruta, cuerpo) {
+  const opciones = cuerpo ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : {};
   const r = await fetch(ruta, opciones);
   if (!r.ok) {
-    let det = '';
-    try { const j = await r.json(); det = j.detail || j.error || ''; } catch(e){}
-    throw new Error(det || r.statusText);
+    let detalle = r.statusText;
+    try { const j = await r.json(); detalle = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch (e) { /* sin cuerpo */ }
+    throw new Error(detalle);
   }
   return r.json();
 }
 
-function barraCohorte(nombre, sub, total, salvado, saturado, fugaTrat, fugaCtrlNoSalv) {
-  const totalN = Math.max(1, total);
-  const pSalvado = (salvado/totalN)*100;
-  const pCtrl = (fugaCtrlNoSalv/totalN)*100;
-  const pSat = (saturado/totalN)*100;
-  const pFuga = (fugaTrat/totalN)*100;
-  const seg = [];
-  if (pSalvado>0.5) seg.push(`<div class="seg seg-salvado" style="width:${pSalvado}%">${Math.round(pSalvado)}%</div>`);
-  if (pCtrl>0.5) seg.push(`<div class="seg seg-control" style="width:${pCtrl}%">${Math.round(pCtrl)}% control</div>`);
-  if (pSat>0.5) seg.push(`<div class="seg seg-saturado" style="width:${pSat}%">${Math.round(pSat)}% sat</div>`);
-  if (pFuga>0.5) seg.push(`<div class="seg seg-fuga" style="width:${pFuga}%">${Math.round(pFuga)}% fuga</div>`);
-  return `<div class="cohorte">
-    <div class="cabecera"><strong>${nombre}</strong><span>${sub}</span></div>
-    <div class="pista">${seg.join('') || '<div style="height:100%;width:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#64748b">n/d</div>'}</div>
-  </div>`;
-}
+function claveGrilla(p) { return `${p.presupuesto}|${p.promos}|${p.criterio}|${p.efecto}`; }
 
-(async function cargar(){
-  try {
-    const [health, seg, mod] = await Promise.all([api('/health'), api('/v1/segmentacion'), api('/v1/modelo')]);
-    document.getElementById('cabecera-meta').textContent =
-      `${fmtNum(health.agentes_cargados)} agentes VIP cargados en memoria · estado: ${health.status}`;
-    document.getElementById('grid-resumen').innerHTML =
-      tarjeta('Agentes VIP', fmtNum(health.agentes_cargados), 'poblacion simulada') +
-      tarjeta('Ingreso total', fmtMoney(seg.ingreso_total)) +
-      tarjeta('Concentracion VIP', fmtPct(seg.concentracion_ingreso_vip_pct), 'del ingreso en top 20%') +
-      tarjeta('Fuga VIP', fmtPct(seg.tasa_fuga_vip_pct), fmtNum(seg.vips_en_fuga)+' clientes') +
-      tarjeta('AUC abandono', Number(mod.auc).toFixed(4), mod.cumple_objetivo?'cumple objetivo':'no cumple') +
-      tarjeta('Presupuesto -15%', 'USD 250,000', 'objetivo de fuga');
-  } catch(e){
-    document.getElementById('aviso-inicio').style.display='block';
-    document.getElementById('aviso-inicio').textContent = 'Error cargando resumen: ' + e.message;
-  }
-  try {
-    const pob = await api('/v1/poblacion');
-    document.getElementById('pob-cantidad').textContent = fmtNum(pob.agentes_totales);
-    document.getElementById('pob-riesgo').innerHTML = pob.deciles_riesgo.map(d=>
-      `<div class="cohorte">
-        <div class="cabecera"><strong>Decil ${d.decil}</strong><span>riesgo ${fmtPct(d.riesgo_min)}-${fmtPct(d.riesgo_max)}</span></div>
-        <div style="height:16px;background:linear-gradient(90deg,#3b82f6,#dc2626)"></div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px">${fmtNum(d.agentes)} agentes</div>
-      </div>`).join('');
-    document.getElementById('pob-valor').innerHTML = pob.deciles_valor.map(d=>
-      `<div class="cohorte">
-        <div class="cabecera"><strong>Decil ${d.decil}</strong><span>valor ~${fmtMoney(d.valor_promedio)}</span></div>
-        <div style="height:16px;background:linear-gradient(90deg,#0ea5e9,#16a34a)"></div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px">${fmtNum(d.agentes)} agentes</div>
-      </div>`).join('');
-  } catch(e){
-    document.getElementById('pob-riesgo').innerHTML = '<div class="etiqueta" style="color:#991b1b">No disponible</div>';
-  }
-})();
-
-function metria(m1,m2,m3=''){return `<div class="metria"><div class="m1">${m1}</div><div class="m2">${m2}</div><div class="m3">${m3}</div></div>`;}
-
-function cohortesDe(resultado, datos){
-  if (!datos || !datos.cohortes || !datos.cohortes.length) return '';
-  const items = datos.cohortes.map(c=>barraCohorte(
-    `Decil ${c.decil}`,
-    `${fmtNum(c.agentes)} agentes`,
-    c.agentes,
-    c.salvados,
-    c.saturados,
-    c.fuga_tratamiento_pct/100*c.agentes,
-    (c.fuga_control_pct/100 - c.fuga_tratamiento_pct/100)*c.agentes
-  )).join('');
-  return `<div style="margin-top:16px">
-    <div class="etiqueta" style="margin-bottom:10px">Como reaccionaron los agentes por decil de riesgo</div>
-    <div class="cohortes">${items}</div>
-    <div class="leyenda">
-      <span><i style="background:var(--verde)"></i>Salvados</span>
-      <span><i style="background:var(--ambar)"></i>Saturados</span>
-      <span><i style="background:var(--rojo)"></i>Siguen en fuga (tratamiento)</span>
-      <span><i style="background:#94a3b8"></i>Control sin intervencion</span>
-    </div>
-  </div>`;
-}
-
-async function simularCampana(){
-  const caja = document.getElementById('resultado-simular');
-  const carga = document.getElementById('carga-simular');
-  caja.innerHTML = ''; carga.classList.add('visible');
-  const body = {
-    nombre: document.getElementById('s-nombre').value,
-    presupuesto_usd: parseFloat(document.getElementById('s-presupuesto').value),
-    costo_promo_usd: parseFloat(document.getElementById('s-costo').value),
-    promos_por_cliente: parseInt(document.getElementById('s-promos').value),
-    criterio: document.getElementById('s-criterio').value,
-    pct_control: parseFloat(document.getElementById('s-control').value)
+function deGrilla(reg) {
+  return {
+    reduccion: reg.r, margen: reg.m, roiMargen: reg.rm, ingreso: reg.i, roi: reg.ri, neto: reg.b,
+    costo: reg.c, alcanzados: reg.a, saturados: reg.s, enviadas: reg.e,
+    cohortes: reg.co.map(([decil, agentes, tratados, salvados, saturados, fc, ft]) => ({ decil, agentes, tratados, salvados, saturados, fc, ft })),
   };
-  try {
-    const [r, trazo] = await Promise.all([
-      api('/v1/simular', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
-      api('/v1/simular/pasos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
-    ]);
-    const saturado = r.clientes_saturados > 0;
-    caja.innerHTML =
-      `<div class="metrias">
-         ${metria('Reduccion de fuga', fmtPct(r.reduccion_fuga_pct), 'efecto causal pareado')}
-         ${metria('ROI', Number(r.roi).toFixed(2), 'retorno por USD')}
-         ${metria('Ingreso incremental', fmtMoney(r.ingreso_incremental_usd), 'trimestre simulado')}
-         ${metria('Costo total', fmtMoney(r.costo_total_usd), fmtNum(r.promos_enviadas)+' promos')}
-         ${metria('Clientes alcanzados', fmtNum(r.clientes_alcanzados), saturado?fmtNum(r.clientes_saturados)+' saturados':'0 saturados')}
-       </div>
-       ${saturado?`<div class="aviso" style="margin:0 0 12px">ATENCION: ${fmtNum(r.clientes_saturados)} clientes sobrepasaron el umbral de ${r.detalle.umbral_saturacion} promociones y se saturaron: el dinero invertido en ellos dio rendimiento cero.</div>`:''}
-       ${cohortesDe(r, trazo)}`;
-  } catch(e){
-    caja.innerHTML = `<div class="aviso" style="margin:0;background:#fee2e2;border-color:#fecaca;color:#991b1b">Error: ${e.message}</div>`;
-  } finally {
-    carga.classList.remove('visible');
+}
+
+function deApi(r, trazo) {
+  return {
+    reduccion: r.reduccion_fuga_pct, margen: r.margen_incremental_usd, roiMargen: r.roi_margen,
+    ingreso: r.ingreso_incremental_usd, roi: r.roi, neto: r.beneficio_neto_usd, costo: r.costo_total_usd,
+    alcanzados: r.clientes_alcanzados, saturados: r.clientes_saturados, enviadas: r.promos_enviadas,
+    cohortes: trazo.cohortes.map(c => ({ decil: c.decil, agentes: c.agentes, tratados: c.tratados, salvados: c.salvados, saturados: c.saturados, fc: c.fuga_control_pct, ft: c.fuga_tratamiento_pct })),
+  };
+}
+
+const fuente = ESTATICO ? {
+  panel: async () => ESTATICO.panel,
+  escenario: async p => {
+    const reg = ESTATICO.grilla.resultados[claveGrilla(p)];
+    if (!reg) throw new Error('Esa combinación no está en la grilla precalculada.');
+    return deGrilla(reg);
+  },
+  curva: async p => P.grilla.presupuestos.map(b => {
+    const reg = ESTATICO.grilla.resultados[claveGrilla({ ...p, presupuesto: b })];
+    return { presupuesto: b, reduccion: reg.r, neto: reg.b };
+  }),
+} : {
+  panel: () => api('/v1/panel'),
+  escenario: async p => {
+    const cuerpo = {
+      nombre: 'tablero', presupuesto_usd: p.presupuesto, costo_promo_usd: P.grilla.costo_promo_usd,
+      promos_por_cliente: p.promos, criterio: p.criterio, pct_control: P.grilla.pct_control,
+      semilla: P.grilla.semilla, efecto_promo: p.efecto, umbral_saturacion: P.grilla.umbral_saturacion,
+    };
+    const [r, trazo] = await Promise.all([api('/v1/simular', cuerpo), api('/v1/simular/pasos', cuerpo)]);
+    return deApi(r, trazo);
+  },
+  curva: async p => {
+    const r = await api('/v1/barrido', {
+      presupuestos: P.grilla.presupuestos, promos_por_cliente: p.promos, criterio: p.criterio,
+      costo_promo_usd: P.grilla.costo_promo_usd, efecto_promo: p.efecto,
+    });
+    return r.resultados.map(f => ({ presupuesto: f.presupuesto_usd, reduccion: f.reduccion_fuga_pct, neto: f.beneficio_neto_usd }));
+  },
+};
+
+let P = null;
+
+/* ---------- Formato: coma decimal y espacio fino de miles, como la defensa ---------- */
+const FINO = ' ';
+function num(v, dec = 0) {
+  if (v == null || !isFinite(v)) return '–';
+  const neg = v < 0 && Math.abs(v) >= 0.5 * Math.pow(10, -dec);
+  const partes = Math.abs(v).toFixed(dec).split('.');
+  partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, FINO);
+  return (neg ? '−' : '') + partes[0] + (partes[1] ? ',' + partes[1] : '');
+}
+const usd = (v, dec = 0) => v == null ? '–' : (v < 0 && Math.round(Math.abs(v)) > 0 ? '−' : '') + 'USD ' + num(Math.abs(v), dec);
+const pct = (v, dec = 1) => v == null ? '–' : num(v, dec) + ' %';
+function compacto(v) {
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if (a >= 1e6) return s + num(a / 1e6, a % 1e6 ? 1 : 0) + ' M';
+  if (a >= 1e3) return s + num(a / 1e3, a % 1e3 ? 1 : 0) + ' k';
+  return s + num(a, a % 1 ? 1 : 0);
+}
+const usdCorto = v => (v < 0 ? '−' : '') + 'USD ' + compacto(Math.abs(v));
+
+const NOMBRE_CRITERIO = {
+  valor_en_riesgo: 'Valor en riesgo (sistema)', riesgo: 'Mayor riesgo de fuga',
+  recencia: 'Regla de recencia', valor: 'Mayor gasto histórico', aleatorio: 'Campaña masiva (al azar)',
+};
+const NOMBRE_ESCENARIO = { pesimista: 'Pesimista', realista: 'Realista', optimista: 'Optimista' };
+function nombreEfecto(e) {
+  const i = P.grilla.efectos.indexOf(e);
+  return num(e, 2) + ' · ' + ['pesimista', 'realista', 'guion (supuesto)'][i];
+}
+const COLOR_EFECTO = ['--o1', '--o2', '--o3'];
+
+/* ---------- Utilidades de DOM y SVG ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const $ = id => document.getElementById(id);
+function nodo(etiqueta, atributos, padre) {
+  const e = document.createElementNS(NS, etiqueta);
+  for (const k in atributos) if (atributos[k] != null) e.setAttribute(k, atributos[k]);
+  if (padre) padre.appendChild(e);
+  return e;
+}
+function texto(etiqueta, atributos, contenido, padre) { const e = nodo(etiqueta, atributos, padre); e.textContent = contenido; return e; }
+function html(etiqueta, clase, contenido) { const e = document.createElement(etiqueta); if (clase) e.className = clase; if (contenido != null) e.textContent = contenido; return e; }
+
+const tip = $('tip');
+function mostrarTip(filas, titulo, x, y) {
+  tip.textContent = '';
+  if (titulo) tip.appendChild(html('div', 'tip-t', titulo));
+  for (const f of filas) {
+    const fila = html('div', 'tip-f');
+    if (f.color) { const k = html('i'); k.style.background = `var(${f.color})`; fila.appendChild(k); }
+    fila.appendChild(html('b', null, f.valor));
+    if (f.nombre) fila.appendChild(html('span', null, f.nombre));
+    tip.appendChild(fila);
+  }
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let px = x + 14, py = y + 14;
+  if (px + w > innerWidth - 8) px = x - w - 14;
+  if (py + h > innerHeight - 8) py = y - h - 14;
+  tip.style.left = Math.max(8, px) + 'px';
+  tip.style.top = Math.max(8, py) + 'px';
+}
+function ocultarTip() { tip.hidden = true; }
+
+function leyenda(id, items, caja) {
+  const c = $(id); c.textContent = '';
+  for (const it of items) {
+    const s = html('span'); const k = html('i', caja ? 'caja' : null); k.style.background = `var(${it.color})`;
+    s.append(k, document.createTextNode(it.nombre)); c.appendChild(s);
   }
 }
 
-async function barrido(){
-  const caja = document.getElementById('resultado-barrido');
-  const carga = document.getElementById('carga-barrido');
-  caja.innerHTML=''; carga.classList.add('visible');
-  const presus = document.getElementById('b-presupuestos').value.split(',').map(s=>parseFloat(s)).filter(x=>!isNaN(x));
-  const body = { presupuestos: presus, promos_por_cliente: parseInt(document.getElementById('b-promos').value), criterio: document.getElementById('b-criterio').value };
-  try {
-    const r = await api('/v1/barrido', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    const filasHtml = r.resultados.map(f=>{
-      const destacado = f.presupuesto_usd === r.presupuesto_minimo_para_objetivo_15pct;
-      return `<tr class="${destacado?'destacado':''}">
-        <td>${fmtMoney(f.presupuesto_usd)}</td>
-        <td>${fmtNum(f.clientes_alcanzados)} (${fmtPct(f.cobertura_pct)})</td>
-        <td>${f.reduccion_fuga_pct>=15?`<span class="pos">${fmtPct(f.reduccion_fuga_pct)}</span>`:fmtPct(f.reduccion_fuga_pct)}</td>
-        <td>${fmtNum(f.roi)}</td>
-        <td>${fmtMoney(f.ingreso_incremental_usd)}</td>
-        <td>${f.clientes_saturados>0?fmtNum(f.clientes_saturados):'-'}</td>
-      </tr>`;
-    }).join('');
-    caja.innerHTML =
-      `<table class="tabla">
-         <thead><tr><th>Presupuesto</th><th>Alcanzados</th><th>Reduccion fuga</th><th>ROI</th><th>Ingreso incremental</th><th>Saturados</th></tr></thead>
-         <tbody>${filasHtml}</tbody>
-       </table>
-       <div style="margin-top:12px;font-size:13px">Presupuesto minimo para -15% de fuga: <strong>${r.presupuesto_minimo_para_objetivo_15pct?fmtMoney(r.presupuesto_minimo_para_objetivo_15pct):'no alcanzable en este rango'}</strong></div>`;
-  } catch(e){
-    caja.innerHTML = `<div class="aviso" style="margin:0;background:#fee2e2;border-color:#fecaca;color:#991b1b">Error: ${e.message}</div>`;
-  } finally {
-    carga.classList.remove('visible');
+function tablaVista(id, columnas, filas) {
+  const destino = $(id).querySelector('.tabla-env') || $(id);
+  destino.textContent = '';
+  const t = html('table'), cab = html('thead'), cuerpo = html('tbody'), tr = html('tr');
+  columnas.forEach(c => { const th = html('th', c.num ? 'num' : null, c.nombre); th.scope = 'col'; tr.appendChild(th); });
+  cab.appendChild(tr);
+  for (const f of filas) {
+    const r = html('tr');
+    f.forEach((v, i) => r.appendChild(html('td', columnas[i].num ? 'num' : null, v)));
+    cuerpo.appendChild(r);
+  }
+  t.append(cab, cuerpo); destino.appendChild(t);
+}
+
+/* ---------- Escalas ---------- */
+function pasoLindo(bruto) {
+  const mag = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const r = bruto / mag;
+  return (r >= 7.5 ? 10 : r >= 3.5 ? 5 : r >= 1.5 ? 2 : 1) * mag;
+}
+function dominioLindo(valores, incluirCero, n = 5) {
+  let mn = Math.min(...valores), mx = Math.max(...valores);
+  if (incluirCero) { mn = Math.min(0, mn); mx = Math.max(0, mx); }
+  if (mn === mx) mx = mn + 1;
+  const paso = pasoLindo((mx - mn) / n);
+  const min = Math.floor(mn / paso + 1e-9) * paso, max = Math.ceil(mx / paso - 1e-9) * paso;
+  const ticks = [];
+  for (let v = min; v <= max + paso / 2; v += paso) ticks.push(Math.round(v / paso) * paso);
+  return { min, max, ticks };
+}
+function escala(d0, d1, r0, r1, log) {
+  const tr = log ? Math.log10 : (v => v);
+  const a = tr(d0), b = tr(d1);
+  return v => r0 + (tr(v) - a) / ((b - a) || 1) * (r1 - r0);
+}
+const anchoTexto = (s, px = 6.6) => String(s).length * px;
+
+/* Barra horizontal con el extremo de dato redondeado y la base recta */
+function barraH(x0, x1, y, h) {
+  const izq = x1 < x0, a = Math.min(x0, x1), b = Math.max(x0, x1);
+  const r = Math.min(4, b - a, h / 2);
+  return izq
+    ? `M${b},${y}H${a + r}Q${a},${y} ${a},${y + r}V${y + h - r}Q${a},${y + h} ${a + r},${y + h}H${b}Z`
+    : `M${a},${y}H${b - r}Q${b},${y} ${b},${y + r}V${y + h - r}Q${b},${y + h} ${b - r},${y + h}H${a}Z`;
+}
+function barraV(x, w, y0, y1) {
+  const r = Math.min(4, w / 2, y0 - y1);
+  return `M${x},${y0}V${y1 + r}Q${x},${y1} ${x + r},${y1}H${x + w - r}Q${x + w},${y1} ${x + w},${y1 + r}V${y0}Z`;
+}
+
+/* Cada grafico se redibuja al cambiar el ancho de su tarjeta */
+const montados = new Map();
+const observador = new ResizeObserver(entradas => {
+  for (const e of entradas) {
+    const g = montados.get(e.target);
+    if (g && Math.abs(e.target.clientWidth - g.ancho) > 4) g.dibujar();
+  }
+});
+function montar(contenedor, dibujar) {
+  const g = { ancho: 0, dibujar: () => { g.ancho = contenedor.clientWidth; contenedor.textContent = ''; ocultarTip(); dibujar(contenedor, Math.max(280, g.ancho)); } };
+  montados.set(contenedor, g);
+  observador.observe(contenedor);
+  g.dibujar();
+}
+
+/* ---------- Grafico de lineas con cruz que sigue al puntero ---------- */
+function graficoLineas(id, cfg) {
+  montar($(id), (c, W) => {
+    const H = cfg.alto || 260;
+    const fy = cfg.y.fmt || (v => num(v)), fx = cfg.x.fmt || (v => num(v));
+    const fyt = cfg.y.fmtTip || fy, fxt = cfg.x.fmtTip || fx;
+    const todosY = cfg.series.flatMap(s => s.puntos.map(p => p.y)).concat((cfg.refs || []).filter(r => r.eje === 'y').map(r => r.valor));
+    const todosX = cfg.series.flatMap(s => s.puntos.map(p => p.x));
+    const ey = cfg.y.min != null ? { min: cfg.y.min, max: cfg.y.max, ticks: cfg.y.ticks || dominioLindo([cfg.y.min, cfg.y.max], false).ticks } : dominioLindo(todosY, cfg.y.cero !== false);
+    const ex = cfg.x.min != null ? { min: cfg.x.min, max: cfg.x.max, ticks: cfg.x.ticks || dominioLindo([cfg.x.min, cfg.x.max], false).ticks }
+      : { min: Math.min(...todosX), max: Math.max(...todosX), ticks: cfg.x.ticks || dominioLindo(todosX, false).ticks };
+    const m = { t: 22, r: 14, b: 28 + (cfg.x.titulo ? 18 : 0), l: Math.max(...ey.ticks.map(t => anchoTexto(fy(t)))) + 12 + (cfg.y.titulo ? 18 : 0) };
+    const conFin = cfg.etiquetasFin && cfg.series.length >= 2 && cfg.series.length <= 4 && W >= 480;
+    if (conFin) m.r = Math.max(...cfg.series.map(s => anchoTexto(s.corto || s.nombre, 6.8))) + 26;
+    const sx = escala(ex.min, ex.max, m.l, W - m.r, cfg.x.log);
+    const sy = escala(ey.min, ey.max, H - m.b, m.t);
+    const svg = nodo('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, tabindex: 0, role: 'img', 'aria-label': cfg.aria || '' }, c);
+
+    for (const t of ey.ticks) {
+      const y = sy(t);
+      nodo('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, class: t === 0 ? 'eje' : 'rejilla' }, svg);
+      texto('text', { x: m.l - 8, y: y + 4, 'text-anchor': 'end', class: 'tick' }, fy(t), svg);
+    }
+    nodo('line', { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: 'eje' }, svg);
+    for (const t of ex.ticks) {
+      if (t < ex.min || t > ex.max) continue;
+      const x = sx(t);
+      nodo('line', { x1: x, x2: x, y1: H - m.b, y2: H - m.b + 4, class: 'eje' }, svg);
+      texto('text', { x, y: H - m.b + 17, 'text-anchor': 'middle', class: 'tick' }, fx(t), svg);
+    }
+    if (cfg.x.titulo) texto('text', { x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle', class: 'titulo-eje' }, cfg.x.titulo, svg);
+    if (cfg.y.titulo) texto('text', { x: 0, y: 0, 'text-anchor': 'middle', class: 'titulo-eje', transform: `translate(11 ${(m.t + H - m.b) / 2}) rotate(-90)` }, cfg.y.titulo, svg);
+
+    for (const r of cfg.refs || []) {
+      const estilo = r.color ? `stroke:var(${r.color})` : null;
+      if (r.eje === 'y') {
+        const y = sy(r.valor);
+        nodo('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, class: 'ref', style: estilo }, svg);
+        if (r.texto) texto('text', { x: r.derecha ? W - m.r - 4 : m.l + 6, y: y - 6, 'text-anchor': r.derecha ? 'end' : 'start', class: 'ref-t' }, r.texto, svg);
+      } else {
+        const x = sx(r.valor);
+        nodo('line', { x1: x, x2: x, y1: m.t - 4, y2: H - m.b, class: 'ref', style: estilo }, svg);
+        const izq = x > m.l + (W - m.r - m.l) * 0.62;
+        if (r.texto) texto('text', { x: x + (izq ? -5 : 5), y: m.t - 8, 'text-anchor': izq ? 'end' : 'start', class: 'ref-t' }, r.texto, svg);
+      }
+    }
+
+    for (const s of cfg.series) {
+      const d = s.puntos.map((p, i) => `${i ? 'L' : 'M'}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join('');
+      if (s.area) {
+        const base = sy(Math.max(ey.min, 0));
+        nodo('path', { d: `${d}L${sx(s.puntos.at(-1).x).toFixed(1)},${base}L${sx(s.puntos[0].x).toFixed(1)},${base}Z`, style: `fill:var(${s.color});opacity:.10;stroke:none` }, svg);
+      }
+      nodo('path', { d, class: 'linea', style: `stroke:var(${s.color})${s.fina ? ';stroke-width:1.25' : ''}` }, svg);
+      if (s.marcas) for (const p of s.puntos) nodo('circle', { cx: sx(p.x), cy: sy(p.y), r: 4, class: 'punto', style: `fill:var(${s.color})` }, svg);
+    }
+
+    if (conFin) {
+      const pos = cfg.series.filter(s => !s.sinEtiqueta).map(s => ({ s, y: sy(s.puntos.at(-1).y), x: sx(s.puntos.at(-1).x) }));
+      const orden = [...pos].sort((a, b) => a.y - b.y);
+      const choca = orden.some((p, i) => i && p.y - orden[i - 1].y < 14);
+      if (!choca) for (const p of pos) {
+        nodo('line', { x1: p.x + 4, x2: p.x + 12, y1: p.y, y2: p.y, class: 'linea', style: `stroke:var(${p.s.color})` }, svg);
+        texto('text', { x: p.x + 16, y: p.y + 4, class: 'etq' }, p.s.corto || p.s.nombre, svg);
+      }
+    }
+
+    for (const d of cfg.destacados || []) {
+      const x = sx(d.x), y = sy(d.y);
+      nodo('circle', { cx: x, cy: y, r: 5, class: 'punto', style: `fill:var(${d.color || '--ink'})` }, svg);
+      if (d.texto) {
+        const izq = d.izquierda ?? (x > m.l + (W - m.r - m.l) * 0.6);
+        // Cerca del borde superior la etiqueta va debajo del punto para no salirse.
+        const abajo = d.abajo ?? (y < m.t + (H - m.t - m.b) * 0.3);
+        texto('text', { x: x + (izq ? -10 : 10), y: y + (abajo ? 18 : -10), 'text-anchor': izq ? 'end' : 'start', class: 'etq-fuerte' }, d.texto, svg);
+      }
+    }
+
+    // Capa de lectura: cruz vertical, un punto por serie y la ayuda emergente.
+    const conTip = cfg.series.filter(s => !s.sinTip);
+    const base = conTip[0].puntos, xsPx = base.map(p => sx(p.x));
+    const cruz = nodo('line', { class: 'cruz', y1: m.t, y2: H - m.b, visibility: 'hidden' }, svg);
+    const marcas = conTip.map(s => nodo('circle', { r: 4.5, class: 'punto', style: `fill:var(${s.color})`, visibility: 'hidden' }, svg));
+    const zona = nodo('rect', { x: m.l, y: m.t, width: Math.max(0, W - m.l - m.r), height: Math.max(0, H - m.t - m.b), style: 'fill:transparent' }, svg);
+    let actual = base.length - 1;
+    function mostrar(i, ev) {
+      actual = i;
+      const px = xsPx[i];
+      cruz.setAttribute('x1', px); cruz.setAttribute('x2', px); cruz.setAttribute('visibility', 'visible');
+      const filas = [];
+      conTip.forEach((s, k) => {
+        let mejor = null, dist = Infinity;
+        for (const p of s.puntos) { const dd = Math.abs(sx(p.x) - px); if (dd < dist) { dist = dd; mejor = p; } }
+        if (mejor && dist < 2) {
+          marcas[k].setAttribute('cx', sx(mejor.x)); marcas[k].setAttribute('cy', sy(mejor.y)); marcas[k].setAttribute('visibility', 'visible');
+          filas.push({ color: s.color, valor: fyt(mejor.y), nombre: s.nombre });
+        } else marcas[k].setAttribute('visibility', 'hidden');
+      });
+      const caja = svg.getBoundingClientRect();
+      const cx = ev ? ev.clientX : caja.left + px * caja.width / W;
+      const cy = ev ? ev.clientY : caja.top + m.t + 10;
+      mostrarTip(filas, (cfg.x.prefijo || '') + fxt(base[i].x), cx, cy);
+    }
+    function ocultar() { cruz.setAttribute('visibility', 'hidden'); marcas.forEach(k => k.setAttribute('visibility', 'hidden')); ocultarTip(); }
+    zona.addEventListener('pointermove', ev => {
+      const caja = svg.getBoundingClientRect();
+      const px = (ev.clientX - caja.left) * W / caja.width;
+      let i = 0, dist = Infinity;
+      xsPx.forEach((x, k) => { const dd = Math.abs(x - px); if (dd < dist) { dist = dd; i = k; } });
+      mostrar(i, ev);
+    });
+    zona.addEventListener('pointerleave', ocultar);
+    svg.addEventListener('focus', () => mostrar(actual));
+    svg.addEventListener('blur', ocultar);
+    svg.addEventListener('keydown', ev => {
+      if (ev.key === 'ArrowLeft') { mostrar(Math.max(0, actual - 1)); ev.preventDefault(); }
+      if (ev.key === 'ArrowRight') { mostrar(Math.min(base.length - 1, actual + 1)); ev.preventDefault(); }
+    });
+  });
+}
+
+/* ---------- Barras horizontales con la etiqueta de categoria encima ---------- */
+function graficoBarras(id, cfg) {
+  montar($(id), (c, W) => {
+    const fmt = cfg.fmt || (v => num(v)), fmtEje = cfg.fmtEje || fmt;
+    const refs = cfg.refs || [];
+    const arriba = refs.length * 16 + 6, fila = 46, ejeAlto = 22;
+    const H = arriba + cfg.filas.length * fila + ejeAlto;
+    const dom = dominioLindo(cfg.filas.map(f => f.valor).concat(refs.map(r => r.valor)), true, 4);
+    const reserva = Math.max(...cfg.filas.map(f => anchoTexto(f.texto ?? fmt(f.valor), 7))) + 12;
+    const sx = escala(dom.min, dom.max, 2, Math.max(120, W - reserva));
+    const svg = nodo('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': cfg.aria || '' }, c);
+    for (const t of dom.ticks) {
+      const x = sx(t);
+      nodo('line', { x1: x, x2: x, y1: arriba, y2: H - ejeAlto, class: t === 0 ? 'eje' : 'rejilla' }, svg);
+      texto('text', { x, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, fmtEje(t), svg);
+    }
+    refs.forEach((r, i) => {
+      const x = sx(r.valor), y = 12 + i * 16;
+      nodo('line', { x1: x, x2: x, y1: y + 4, y2: H - ejeAlto, class: 'ref', style: r.color ? `stroke:var(${r.color})` : null }, svg);
+      const izq = x > W * 0.55;
+      texto('text', { x: x + (izq ? -5 : 5), y, 'text-anchor': izq ? 'end' : 'start', class: 'ref-t' }, r.texto, svg);
+    });
+    cfg.filas.forEach((f, i) => {
+      const y0 = arriba + i * fila, yb = y0 + 22, h = 14;
+      texto('text', { x: 2, y: y0 + 14, class: 'cat' }, f.etiqueta, svg);
+      const x0 = sx(0), x1 = sx(f.valor);
+      if (Math.abs(x1 - x0) >= 1) nodo('path', { d: barraH(x0, x1, yb, h), style: `fill:var(${f.color || '--s1'})` }, svg);
+      texto('text', { x: Math.max(x0, x1) + 6, y: yb + 11, class: f.destacada ? 'etq-fuerte' : 'etq' }, f.texto ?? fmt(f.valor), svg);
+      const zona = nodo('rect', { x: 0, y: y0, width: W, height: fila, style: 'fill:transparent', tabindex: 0, 'aria-label': `${f.etiqueta}: ${f.texto ?? fmt(f.valor)}` }, svg);
+      const ver = ev => {
+        const caja = zona.getBoundingClientRect();
+        mostrarTip([{ color: f.color || '--s1', valor: f.texto ?? fmt(f.valor), nombre: f.nota || '' }], f.etiqueta, ev ? ev.clientX : caja.left + 40, ev ? ev.clientY : caja.top);
+      };
+      zona.addEventListener('pointermove', ver); zona.addEventListener('pointerleave', ocultarTip);
+      zona.addEventListener('focus', () => ver()); zona.addEventListener('blur', ocultarTip);
+    });
+  });
+}
+
+/* ---------- Columnas agrupadas (deciles) ---------- */
+function graficoColumnas(id, cfg) {
+  montar($(id), (c, W) => {
+    const H = cfg.alto || 240, fy = cfg.y.fmt || (v => num(v)), fyt = cfg.y.fmtTip || fy;
+    const dom = dominioLindo(cfg.series.flatMap(s => s.valores), true, 4);
+    const m = { t: 12, r: 6, b: 30 + (cfg.x?.titulo ? 16 : 0), l: Math.max(...dom.ticks.map(t => anchoTexto(fy(t)))) + 12 };
+    const sy = escala(dom.min, dom.max, H - m.b, m.t);
+    const n = cfg.categorias.length, k = cfg.series.length, banda = (W - m.l - m.r) / n;
+    const bw = Math.max(3, Math.min(24, (banda - 8 - (k - 1) * 2) / k));
+    const svg = nodo('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': cfg.aria || '' }, c);
+    for (const t of dom.ticks) {
+      const y = sy(t);
+      nodo('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, class: t === 0 ? 'eje' : 'rejilla' }, svg);
+      texto('text', { x: m.l - 8, y: y + 4, 'text-anchor': 'end', class: 'tick' }, fy(t), svg);
+    }
+    if (cfg.x?.titulo) texto('text', { x: (m.l + W - m.r) / 2, y: H - 2, 'text-anchor': 'middle', class: 'titulo-eje' }, cfg.x.titulo, svg);
+    cfg.categorias.forEach((cat, i) => {
+      const cx = m.l + banda * i + banda / 2, grupo = k * bw + (k - 1) * 2;
+      cfg.series.forEach((s, j) => {
+        const v = s.valores[i], x = cx - grupo / 2 + j * (bw + 2), y1 = sy(Math.max(0, v)), y0 = sy(0);
+        if (y0 - y1 >= 0.5) nodo('path', { d: barraV(x, bw, y0, y1), style: `fill:var(${s.color})` }, svg);
+      });
+      texto('text', { x: cx, y: H - m.b + 16, 'text-anchor': 'middle', class: 'tick' }, cat, svg);
+      const zona = nodo('rect', { x: m.l + banda * i, y: m.t, width: banda, height: H - m.t - m.b, style: 'fill:transparent', tabindex: 0 }, svg);
+      const ver = ev => {
+        const caja = zona.getBoundingClientRect();
+        const filas = cfg.series.map(s => ({ color: s.color, valor: fyt(s.valores[i]), nombre: s.nombre })).concat(cfg.extraTip ? cfg.extraTip(i) : []);
+        mostrarTip(filas, cfg.tituloTip ? cfg.tituloTip(i) : cat, ev ? ev.clientX : caja.right, ev ? ev.clientY : caja.top + 20);
+      };
+      zona.addEventListener('pointermove', ver); zona.addEventListener('pointerleave', ocultarTip);
+      zona.addEventListener('focus', () => ver()); zona.addEventListener('blur', ocultarTip);
+    });
+  });
+}
+
+/* ---------- Tornado del VPN ---------- */
+function graficoTornado(id, cfg) {
+  montar($(id), (c, W) => {
+    const fmt = cfg.fmt, arriba = 26, fila = 46, ejeAlto = 22;
+    const H = arriba + cfg.filas.length * fila + ejeAlto;
+    const dom = dominioLindo(cfg.filas.flatMap(f => [f.bajo, f.alto]).concat([cfg.base]), true, 4);
+    const izq = Math.max(...cfg.filas.map(f => anchoTexto(fmt(f.bajo), 6.8))) + 10;
+    const der = Math.max(...cfg.filas.map(f => anchoTexto(fmt(f.alto), 6.8))) + 10;
+    const sx = escala(dom.min, dom.max, izq, W - der);
+    const svg = nodo('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': cfg.aria || '' }, c);
+    for (const t of dom.ticks) {
+      const x = sx(t);
+      nodo('line', { x1: x, x2: x, y1: arriba, y2: H - ejeAlto, class: t === 0 ? 'eje' : 'rejilla' }, svg);
+      texto('text', { x, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, cfg.fmtEje(t), svg);
+    }
+    const xb = sx(cfg.base);
+    nodo('line', { x1: xb, x2: xb, y1: arriba - 6, y2: H - ejeAlto, class: 'ref' }, svg);
+    texto('text', { x: Math.min(Math.max(xb, 120), W - 120), y: 12, 'text-anchor': 'middle', class: 'ref-t' }, cfg.textoBase, svg);
+    cfg.filas.forEach((f, i) => {
+      const y0 = arriba + i * fila, yb = y0 + 22, h = 14;
+      texto('text', { x: izq, y: y0 + 14, class: 'cat' }, f.variable, svg);
+      if (xb - sx(f.bajo) >= 1) nodo('path', { d: barraH(xb, sx(f.bajo), yb, h), style: 'fill:var(--d-neg)' }, svg);
+      if (sx(f.alto) - xb >= 1) nodo('path', { d: barraH(xb, sx(f.alto), yb, h), style: 'fill:var(--d-pos)' }, svg);
+      texto('text', { x: sx(f.bajo) - 6, y: yb + 11, 'text-anchor': 'end', class: 'etq' }, fmt(f.bajo), svg);
+      texto('text', { x: sx(f.alto) + 6, y: yb + 11, class: 'etq' }, fmt(f.alto), svg);
+      const zona = nodo('rect', { x: 0, y: y0, width: W, height: fila, style: 'fill:transparent', tabindex: 0 }, svg);
+      const ver = ev => {
+        const caja = zona.getBoundingClientRect();
+        mostrarTip([{ color: '--d-neg', valor: fmt(f.bajo), nombre: 'supuesto en su valor pesimista' }, { color: '--d-pos', valor: fmt(f.alto), nombre: 'supuesto en su valor optimista' }],
+          f.variable, ev ? ev.clientX : caja.left + 40, ev ? ev.clientY : caja.top);
+      };
+      zona.addEventListener('pointermove', ver); zona.addEventListener('pointerleave', ocultarTip);
+      zona.addEventListener('focus', () => ver()); zona.addEventListener('blur', ocultarTip);
+    });
+  });
+}
+
+/* ---------- Piezas reutilizables ---------- */
+function cifra(etiqueta, valor, detalle, clase) {
+  const d = html('div', 'cifra' + (clase ? ' ' + clase : ''));
+  d.append(html('span', 'etiqueta', etiqueta), html('span', 'valor', valor));
+  if (detalle) d.appendChild(html('span', 'detalle', detalle));
+  return d;
+}
+function llenarCifras(id, lista) { const c = $(id); c.textContent = ''; lista.forEach(x => c.appendChild(cifra(...x))); }
+const ESTADOS = {
+  cumple: ['ok', '✓', 'Cumple'], no_cumple: ['mal', '✕', 'No cumple'],
+  simulado: ['sim', '≈', 'Solo con 0,35'], fuera: ['aviso', '↑', 'Fuera del rango'],
+};
+function pastillaEstado(estado) {
+  const [clase, glifo, etiqueta] = ESTADOS[estado] || ['sim', '·', estado];
+  const s = html('span', 'estado ' + clase); s.textContent = `${glifo} ${etiqueta}`; return s;
+}
+function segmentos(id, opciones, actual, alElegir) {
+  const c = $(id); c.textContent = '';
+  for (const o of opciones) {
+    const b = html('button', null, o.texto); b.type = 'button';
+    b.setAttribute('aria-pressed', String(o.valor === actual));
+    b.addEventListener('click', () => {
+      c.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true'); alElegir(o.valor);
+    });
+    c.appendChild(b);
   }
 }
+
+/* ---------- Secciones ---------- */
+function pintarCabecera(salud) {
+  const pastilla = $('pastilla-modo');
+  if (ESTATICO) {
+    $('modo-texto').textContent = 'Versión estática';
+    $('modo-detalle').textContent = `${num(Object.keys(ESTATICO.grilla.resultados).length)} escenarios precalculados con el simulador · sin datos por cliente`;
+  } else {
+    pastilla.classList.add('vivo');
+    $('modo-texto').textContent = 'API local en vivo';
+    $('modo-detalle').textContent = salud ? `${num(salud.agentes_cargados)} agentes cargados en memoria` : '';
+  }
+}
+
+function pintarResumen() {
+  const r = P.resumen, mo = P.modelo, s = P.sistema.realista;
+  llenarCifras('cifras-resumen', [
+    ['Ingreso del 20 % VIP', pct(r.concentracion_vip_pct, 2), `de ${usd(r.ingreso_total_usd)} en doce meses`],
+    ['Clientes VIP', num(r.vips), `gasto anual ≥ ${usd(r.umbral_vip_usd, 2)}`],
+    ['AUC del modelo', num(mo.auc, 3), `regla de recencia: ${num(mo.auc_recencia, 3)}`],
+    ['Agentes simulados', num(r.agentes), `VIP del conjunto de prueba; ${pct(r.fuga_prueba_pct, 1)} se fugó`],
+    ['VPN del sistema', usd(s.vpn), `realista; pesimista ${usd(P.sistema.pesimista.vpn)}`],
+    ['Respuesta por escenario', '0,3–0,6 s', 'en local; meta de la propuesta: < 10 min'],
+  ]);
+}
+
+function pintarProblema() {
+  const r = P.resumen, d = P.datos, L = P.concentracion;
+  const y20 = 100 * L.y[20];
+  $('problema-entrada').textContent = `El ${num(20)} % de los clientes con mayor gasto genera el ${num(y20, 1)} % del ingreso. Aun así, las promociones del año fueron masivas y la intensidad y el presupuesto se deciden por experiencia.`;
+  const puntos = L.x.map((x, i) => ({ x: 100 * x, y: 100 * L.y[i] }));
+  leyenda('ley-lorenz', [{ nombre: 'Cadena de farmacias', color: '--s1' }, { nombre: 'Reparto igualitario', color: '--base' }]);
+  graficoLineas('g-lorenz', {
+    alto: 280, aria: 'Curva de concentración del ingreso',
+    x: { min: 0, max: 100, ticks: [0, 20, 40, 60, 80, 100], fmt: v => num(v) + ' %', titulo: 'Clientes, de mayor a menor gasto', prefijo: 'Primer ' },
+    y: { min: 0, max: 100, ticks: [0, 20, 40, 60, 80, 100], fmt: v => num(v) + ' %', fmtTip: v => pct(v, 1) },
+    series: [
+      { nombre: 'del ingreso', color: '--s1', puntos, area: true },
+      { nombre: 'Reparto igualitario', color: '--base', puntos: [{ x: 0, y: 0 }, { x: 100, y: 100 }], fina: true, sinTip: true },
+    ],
+    destacados: [
+      { x: 20, y: y20, texto: `20 % de los clientes: ${num(y20, 1)} % del ingreso`, color: '--s1', izquierda: false, abajo: true },
+      { x: 1, y: 100 * L.y[1], texto: `1 %: ${num(100 * L.y[1], 1)} %`, color: '--s1', izquierda: false, abajo: false },
+    ],
+  });
+  tablaVista('t-lorenz', [{ nombre: 'Clientes' }, { nombre: 'Ingreso acumulado', num: true }],
+    [1, 5, 10, 20, 30, 50, 80, 100].map(p => [`primer ${p} %`, pct(100 * L.y[p], 1)]));
+
+  const hechos = $('hechos-datos'); hechos.textContent = '';
+  const items = [
+    [d.lineas != null ? num(d.lineas / 1e6, 1) + ' M' : null, 'líneas de venta'],
+    [d.comprobantes != null ? num(d.comprobantes / 1e6, 1) + ' M' : null, 'comprobantes'],
+    [num(r.clientes / 1e6, 1) + ' M', 'clientes identificados'],
+    [d.sucursales != null ? num(d.sucursales) : null, 'sucursales'],
+    [d.csv_gb != null ? num(d.csv_gb, 1) + ' GB' : null, 'CSV de ventas, 40 columnas'],
+    [d.parquet_gb != null ? num(d.parquet_gb, 2) + ' GB' : null, 'Parquet por marca y mes, 11 columnas'],
+  ];
+  for (const [valor, etiqueta] of items) {
+    if (valor == null) continue;
+    const div = html('div'); div.append(html('dt', null, etiqueta), html('dd', null, valor)); hechos.appendChild(div);
+  }
+  $('datos-calidad').textContent = `Se excluyeron ${d.cuentas_genericas} cuentas genéricas, como el consumidor final: sumaban el ${pct(d.pct_comprobantes_genericas, 0)} de los comprobantes y el ${pct(d.pct_ingreso_genericas, 0)} del ingreso. El margen usa el costo efectivo de cada venta (${pct(r.margen_vip_pct, 2)} en el segmento VIP).`;
+
+  const nombres = { ingesta: 'Ingesta a Parquet', rfm: 'Segmentación RFM', churn: 'Modelo de abandono', simulacion: 'Escenarios del simulador' };
+  const etapas = d.etapas || [];
+  if (etapas.length) {
+    const total = etapas.reduce((a, e) => a + e.segundos, 0);
+    graficoBarras('g-etapas', {
+      aria: 'Duración de cada etapa del pipeline',
+      filas: etapas.map(e => ({ etiqueta: nombres[e.etapa] || e.etapa, valor: e.segundos / 60, texto: `${num(e.segundos / 60, 1)} min`, color: '--s1', nota: e.pico_ram_gb ? `pico de RAM ${num(e.pico_ram_gb, 1)} GB` : '' })),
+      fmt: v => num(v, 1) + ' min', fmtEje: v => num(v, v % 1 ? 1 : 0) + ' min',
+    });
+    tablaVista('t-etapas', [{ nombre: 'Etapa' }, { nombre: 'Duración', num: true }, { nombre: 'Pico de RAM', num: true }],
+      etapas.map(e => [nombres[e.etapa] || e.etapa, `${num(e.segundos / 60, 1)} min`, e.pico_ram_gb ? `${num(e.pico_ram_gb, 1)} GB` : 'no medido'])
+        .concat([['Total', `${num(total / 60, 1)} min`, '']]));
+  }
+}
+
+function pintarModelo() {
+  const mo = P.modelo;
+  const meses = ['jul', 'ago', 'sep', 'oct', 'nov', 'dic', 'ene', 'feb', 'mar', 'abr', 'may', 'jun'];
+  const lt = $('linea-tiempo'); lt.textContent = '';
+  const fila = (titulo, detalle, varHasta, etiHasta, textoVar, textoEti) => {
+    const q = html('div', 'quien'); q.append(html('b', null, titulo), document.createTextNode(detalle));
+    const pista = html('div', 'pista');
+    const v = html('span', 'var', textoVar); v.style.gridColumn = `1 / ${varHasta + 1}`;
+    const e = html('span', 'eti', textoEti); e.style.gridColumn = `${varHasta + 1} / ${etiHasta + 1}`;
+    pista.append(v, e); lt.append(q, pista);
+  };
+  fila('Entrenamiento', `${num(mo.n_entrenamiento)} VIP`, 6, 9, 'Variables · jul.–dic. 2025', 'Fuga · ene.–mar.');
+  fila('Prueba', `${num(mo.n_prueba)} VIP`, 9, 12, 'Variables · jul. 2025 – mar. 2026', 'Fuga · abr.–jun.');
+  const eje = html('div', 'meses'); meses.forEach(mm => eje.appendChild(html('span', null, mm)));
+  lt.append(html('div'), eje);
+
+  llenarCifras('cifras-modelo', [
+    ['AUC en la prueba', num(mo.auc, 4), `mínimo exigido 0,75 · recencia ${num(mo.auc_recencia, 4)}`],
+    ['Captura del decil de mayor riesgo', pct(mo.captura_decil_superior_pct, 1), 'de todas las fugas'],
+    ['Average precision', num(mo.average_precision, 3), `Brier ${num(mo.brier, 3)}`],
+    ['Deriva del score (PSI)', num(mo.psi, 3), 'estable por debajo de 0,10'],
+  ]);
+
+  const roc = s => mo.roc[s].fpr.map((x, i) => ({ x: 100 * x, y: 100 * mo.roc[s].tpr[i] }));
+  const puntosModelo = roc('modelo'), puntosRec = roc('recencia');
+  leyenda('ley-roc', [{ nombre: `Modelo (AUC ${num(mo.auc, 3)})`, color: '--s1' }, { nombre: `Regla de recencia (AUC ${num(mo.auc_recencia, 3)})`, color: '--base' }]);
+  graficoLineas('g-roc', {
+    alto: 290, aria: 'Curva ROC del modelo y de la regla de recencia',
+    x: { min: 0, max: 100, ticks: [0, 20, 40, 60, 80, 100], fmt: v => num(v) + ' %', titulo: 'Falsos positivos', prefijo: 'Falsos positivos: ' },
+    y: { min: 0, max: 100, ticks: [0, 20, 40, 60, 80, 100], fmt: v => num(v) + ' %', fmtTip: v => pct(v, 1), titulo: 'Fugas detectadas' },
+    series: [
+      { nombre: 'modelo', color: '--s1', puntos: puntosModelo },
+      { nombre: 'regla de recencia', color: '--base', puntos: puntosRec },
+      { nombre: 'azar', color: '--axis', puntos: [{ x: 0, y: 0 }, { x: 100, y: 100 }], fina: true, sinTip: true },
+    ],
+    destacados: [{ x: 20, y: puntosModelo[20].y, texto: `${num(puntosModelo[20].y)} % con 20 % de falsos positivos`, color: '--s1', izquierda: false, abajo: true }],
+  });
+  tablaVista('t-roc', [{ nombre: 'Falsos positivos' }, { nombre: 'Detectadas: modelo', num: true }, { nombre: 'Detectadas: recencia', num: true }],
+    [5, 10, 20, 30, 50, 70].map(i => [pct(i, 0), pct(puntosModelo[i].y, 1), pct(puntosRec[i].y, 1)]));
+
+  const cal = mo.calibracion;
+  leyenda('ley-cal', [{ nombre: 'Fuga predicha', color: '--s1' }, { nombre: 'Fuga observada', color: '--s2' }], true);
+  graficoColumnas('g-cal', {
+    alto: 250, aria: 'Fuga predicha y observada por decil',
+    categorias: cal.map((_, i) => String(i + 1)), x: { titulo: 'Decil de riesgo (1 = menor)' },
+    y: { fmt: v => num(v) + ' %', fmtTip: v => pct(v, 1) },
+    series: [{ nombre: 'predicha', color: '--s1', valores: cal.map(d => 100 * d.predicha) }, { nombre: 'observada', color: '--s2', valores: cal.map(d => 100 * d.observada) }],
+    tituloTip: i => `Decil ${i + 1} · ${num(cal[i].n)} clientes`,
+  });
+  const ult = cal.at(-1);
+  $('lectura-cal').textContent = `Ordena bien, pero sobrestima el extremo: en el decil de mayor riesgo predice ${pct(100 * ult.predicha, 1)} y se observa ${pct(100 * ult.observada, 1)}. En la lista focalizada del sistema la fuga predicha es ${pct(100 * mo.lista.fuga_predicha, 1)} y la observada ${pct(100 * mo.lista.fuga_observada, 1)}: se recalibrará antes del piloto.`;
+  tablaVista('t-cal', [{ nombre: 'Decil' }, { nombre: 'Clientes', num: true }, { nombre: 'Predicha', num: true }, { nombre: 'Observada', num: true }],
+    cal.map((d, i) => [String(i + 1), num(d.n), pct(100 * d.predicha, 1), pct(100 * d.observada, 1)]));
+}
+
+/* ---------- Simulador ---------- */
+const sim = { presupuesto: 139000, promos: 2, criterio: 'valor_en_riesgo', efecto: null };
+let turno = 0;
+
+function construirControles() {
+  const g = P.grilla;
+  sim.efecto = g.efectos[1];
+  const sel = $('c-presupuesto'); sel.textContent = '';
+  g.presupuestos.forEach(b => { const o = html('option', null, usd(b)); o.value = b; o.selected = b === sim.presupuesto; sel.appendChild(o); });
+  sel.addEventListener('change', () => { sim.presupuesto = Number(sel.value); simular(); });
+  const crit = $('c-criterio'); crit.textContent = '';
+  g.criterios.forEach(c => { const o = html('option', null, NOMBRE_CRITERIO[c] || c); o.value = c; o.selected = c === sim.criterio; crit.appendChild(o); });
+  crit.addEventListener('change', () => { sim.criterio = crit.value; simular(); });
+  segmentos('c-promos', g.promos.map(p => ({ valor: p, texto: String(p) })), sim.promos, v => { sim.promos = v; simular(); });
+  segmentos('c-efecto', g.efectos.map(e => ({ valor: e, texto: nombreEfecto(e) })), sim.efecto, v => { sim.efecto = v; simular(); });
+  $('simulador-entrada').textContent = ESTATICO
+    ? `Cada combinación se resolvió de antemano con el mismo simulador y la población real de ${num(P.resumen.agentes)} agentes VIP (una corrida, semilla ${g.semilla}, ${num(100 * g.pct_control)} % de control, USD ${num(g.costo_promo_usd, 2)} por promoción). La página no contiene datos de clientes.`
+    : `Cada cambio resuelve la campaña sobre los ${num(P.resumen.agentes)} agentes VIP en memoria, frente a un mundo sin campaña con el mismo azar (semilla ${g.semilla}, ${num(100 * g.pct_control)} % de control, USD ${num(g.costo_promo_usd, 2)} por promoción).`;
+  $('sub-curva-r').textContent = 'Con la intensidad, la regla y el efecto elegidos. Eje horizontal en escala logarítmica.';
+}
+
+async function simular() {
+  const mio = ++turno, caja = $('resultado');
+  caja.setAttribute('aria-busy', 'true');
+  try {
+    const [r, curva] = await Promise.all([fuente.escenario(sim), fuente.curva(sim)]);
+    if (mio !== turno) return;
+    pintarSimulacion(r, curva);
+  } catch (e) {
+    if (mio !== turno) return;
+    $('veredicto').textContent = '';
+    $('veredicto').appendChild(html('div', 'aviso-error', `No se pudo simular: ${e.message}. Si usas la versión local, revisa que la API siga corriendo.`));
+  } finally {
+    if (mio === turno) caja.setAttribute('aria-busy', 'false');
+  }
+}
+
+function pintarSimulacion(r, curva) {
+  const agentes = P.resumen.agentes;
+  llenarCifras('cifras-sim', [
+    ['Reducción de la fuga', pct(r.reduccion, 2), 'frente al mundo sin campaña'],
+    ['Margen retenido', usd(r.margen), `ingreso retenido ${usd(r.ingreso)}`],
+    ['Retorno sobre margen', num(r.roiMargen, 2), `sobre ingreso: ${num(r.roi, 2)}`],
+    ['Beneficio neto', usd(r.neto), `gasto ${usd(r.costo)}`, r.neto >= 0 ? 'positivo' : 'negativo'],
+    ['Clientes alcanzados', num(r.alcanzados), `${pct(100 * r.alcanzados / agentes, 1)} de los VIP`],
+    ['Clientes saturados', num(r.saturados), r.saturados ? 'recibieron 3 o más promociones' : 'ninguno superó el umbral'],
+  ]);
+
+  const v = $('veredicto'); v.textContent = '';
+  const meta = r.reduccion >= 15;
+  v.appendChild(pastillaEstado(meta ? 'cumple' : 'no_cumple'));
+  v.lastChild.textContent = meta ? '✓ Alcanza la meta de −15 %' : '✕ No alcanza la meta de −15 %';
+  const p = html('p');
+  const b1 = html('b', null, r.neto >= 0 ? `gana ${usd(r.neto)}` : `pierde ${usd(Math.abs(r.neto))}`);
+  p.append(document.createTextNode(`Con un efecto de ${num(sim.efecto, 2)} y ${usd(sim.presupuesto)}, la campaña `), b1,
+    document.createTextNode(`: retiene ${usd(r.margen)} de margen y gasta ${usd(r.costo)}.`));
+  if (r.saturados) p.append(document.createTextNode(` ${num(r.saturados)} clientes se saturaron y su gasto no rinde.`));
+  if (sim.efecto === P.grilla.efectos[2]) p.append(document.createTextNode(' El efecto 0,35 es el supuesto del guion, no una medición.'));
+  v.appendChild(p);
+
+  const x = { log: true, min: P.grilla.presupuestos[0], max: P.grilla.presupuestos.at(-1), ticks: [1e3, 1e4, 1e5, 1e6], fmt: v2 => 'USD ' + compacto(v2), fmtTip: v2 => usd(v2), titulo: 'Presupuesto por trimestre' };
+  const color = COLOR_EFECTO[P.grilla.efectos.indexOf(sim.efecto)] || '--s1';
+  const actual = curva.find(c => c.presupuesto === sim.presupuesto);
+  graficoLineas('g-curva-r', {
+    alto: 250, aria: 'Reducción de la fuga según el presupuesto', x,
+    y: { fmt: v2 => num(v2) + ' %', fmtTip: v2 => pct(v2, 2) },
+    refs: [{ eje: 'y', valor: 15, texto: 'meta −15 %' }],
+    series: [{ nombre: 'reducción de la fuga', color, puntos: curva.map(c => ({ x: c.presupuesto, y: c.reduccion })), marcas: true }],
+    destacados: actual ? [{ x: actual.presupuesto, y: actual.reduccion, texto: pct(actual.reduccion, 1), color }] : [],
+  });
+  graficoLineas('g-curva-b', {
+    alto: 250, aria: 'Beneficio neto según el presupuesto', x,
+    y: { fmt: v2 => usdCorto(v2), fmtTip: v2 => usd(v2) },
+    series: [{ nombre: 'beneficio neto', color, puntos: curva.map(c => ({ x: c.presupuesto, y: c.neto })), marcas: true }],
+    destacados: actual ? [{ x: actual.presupuesto, y: actual.neto, texto: usdCorto(actual.neto), color }] : [],
+  });
+  tablaVista('t-curva', [{ nombre: 'Presupuesto' }, { nombre: 'Reducción de la fuga', num: true }, { nombre: 'Beneficio neto', num: true }],
+    curva.map(c => [usd(c.presupuesto), pct(c.reduccion, 2), usd(c.neto)]));
+
+  leyenda('ley-cohortes', [{ nombre: 'Salvados', color: '--s1' }, { nombre: 'Saturados', color: '--sat' }], true);
+  const co = r.cohortes;
+  graficoColumnas('g-cohortes', {
+    alto: 240, aria: 'Clientes salvados y saturados por decil de riesgo',
+    categorias: co.map(c => String(c.decil)), x: { titulo: 'Decil de probabilidad de fuga (1 = 0–10 %)' },
+    y: { fmt: v2 => compacto(v2), fmtTip: v2 => num(v2) },
+    series: [{ nombre: 'salvados', color: '--s1', valores: co.map(c => c.salvados) }, { nombre: 'saturados', color: '--sat', valores: co.map(c => c.saturados) }],
+    tituloTip: i => `Decil ${co[i].decil} · ${num(co[i].agentes)} agentes`,
+    extraTip: i => [{ valor: `${pct(co[i].fc, 1)} → ${pct(co[i].ft, 1)}`, nombre: 'fuga sin y con campaña' }],
+  });
+  tablaVista('t-cohortes', [{ nombre: 'Decil' }, { nombre: 'Agentes', num: true }, { nombre: 'Tratados', num: true }, { nombre: 'Salvados', num: true }, { nombre: 'Saturados', num: true }, { nombre: 'Fuga sin campaña', num: true }, { nombre: 'Fuga con campaña', num: true }],
+    co.map(c => [String(c.decil), num(c.agentes), num(c.tratados), num(c.salvados), num(c.saturados), pct(c.fc, 1), pct(c.ft, 1)]));
+}
+
+function pintarEfecto() {
+  const ep = P.efecto_promos;
+  $('sub-efecto').textContent = `Agente de receptividad media (${num(ep.receptividad_media, 2)}). Cada promoción aporta el ${num(100 * ep.decaimiento)} % de la anterior y desde la ${ep.umbral}.ª el efecto es nulo: ambos son supuestos del diseño.`;
+  leyenda('ley-efecto', ep.curvas.map((c, i) => ({ nombre: `efecto ${nombreEfecto(c.efecto)}`, color: COLOR_EFECTO[i] })));
+  graficoLineas('g-efecto', {
+    alto: 250, aria: 'Reducción del riesgo según las promociones recibidas',
+    x: { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5], fmt: v => String(v), titulo: 'Promociones recibidas en el trimestre', prefijo: 'Promociones: ' },
+    y: { fmt: v => num(v) + ' %', fmtTip: v => pct(v, 1), cero: true },
+    refs: [{ eje: 'x', valor: ep.umbral, texto: `umbral u = ${ep.umbral} (supuesto)`, color: '--sat' }],
+    series: ep.curvas.map((c, i) => ({ nombre: `efecto ${num(c.efecto, 2)}`, color: COLOR_EFECTO[i], puntos: c.puntos.map(p => ({ x: p.promos, y: p.reduccion_pct })), marcas: true })),
+  });
+  tablaVista('t-efecto', [{ nombre: 'Promociones' }].concat(ep.curvas.map(c => ({ nombre: `Efecto ${num(c.efecto, 2)}`, num: true }))),
+    ep.curvas[0].puntos.map((p, i) => [String(p.promos)].concat(ep.curvas.map(c => pct(c.puntos[i].reduccion_pct, 2)))));
+
+  const sat = P.saturacion_guion;
+  graficoBarras('g-saturacion', {
+    aria: 'Retorno sobre margen según promociones por cliente',
+    filas: sat.map(s => ({
+      etiqueta: `${s.promos} ${s.promos === 1 ? 'promoción' : 'promociones'} · ${num(s.clientes_alcanzados)} clientes`,
+      valor: s.roi_margen, color: s.clientes_saturados ? '--sat' : '--s1', destacada: s.promos === 2,
+      texto: s.clientes_saturados ? `${num(s.roi_margen, 2)} · ${num(s.clientes_saturados)} saturados` : num(s.roi_margen, 2),
+      nota: `fuga −${pct(s.reduccion_fuga_pct, 2)}`,
+    })),
+    fmt: v => num(v, 2), fmtEje: v => num(v),
+  });
+  const [s1, s2] = sat;
+  $('nota-saturacion').textContent = '';
+  $('nota-saturacion').append(html('b', null, 'Lectura prudente. '),
+    document.createTextNode(`Dos promociones superan a una en solo ${num(100 * (s2.roi_margen / s1.roi_margen - 1), 1)} % de retorno y reducen menos la fuga (${pct(s2.reduccion_fuga_pct, 2)} frente a ${pct(s1.reduccion_fuga_pct, 2)}). La forma de la curva la fijan los supuestos; lo que no depende del umbral es que el sistema se paga frente a la campaña masiva desde un efecto de ${num(P.equilibrio.efecto_minimo_vpn0, 3)}.`));
+}
+
+function pintarCampana() {
+  const pol = [...P.politicas].sort((a, b) => b.margen_incremental_usd - a.margen_incremental_usd);
+  $('sub-politicas').textContent = `Escenario realista (efecto 0,10), USD ${num(P.referencia.presupuesto)} por trimestre, promedio de ${P.referencia.semillas} corridas.`;
+  graficoBarras('g-politicas', {
+    aria: 'Margen retenido según la regla de selección',
+    filas: pol.map(p => ({
+      etiqueta: p.politica, valor: p.margen_incremental_usd,
+      color: p.criterio === 'valor_en_riesgo' && p.promos === 2 ? '--s1' : (p.clientes_saturados > 0 ? '--sat' : '--base'),
+      destacada: p.criterio === 'valor_en_riesgo',
+      texto: p.clientes_saturados > 0 && !p.margen_incremental_usd ? `${usd(0)} · saturación` : usd(p.margen_incremental_usd),
+      nota: `fuga −${pct(p.reduccion_fuga_pct, 2)} · ${num(p.clientes_alcanzados)} clientes`,
+    })),
+    fmt: v => usd(v), fmtEje: v => usdCorto(v),
+  });
+  const sis = P.politicas.find(p => p.criterio === 'valor_en_riesgo'), masiva = P.politicas.find(p => p.criterio === 'aleatorio');
+  $('lectura-politicas').textContent = `La lista del sistema retiene ${num(sis.margen_incremental_usd / masiva.margen_incremental_usd, 1)} veces el margen de la campaña masiva con el mismo gasto. Ordenar solo por riesgo reduce algo más la fuga, pero retiene clientes de menor gasto; elegir a quienes más gastan casi no reduce la fuga, porque esos clientes rara vez se van.`;
+  tablaVista('t-politicas', [{ nombre: 'Regla' }, { nombre: 'Margen por trimestre', num: true }, { nombre: 'Desviación', num: true }, { nombre: 'Reducción de la fuga', num: true }, { nombre: 'Clientes', num: true }],
+    pol.map(p => [p.politica, usd(p.margen_incremental_usd), usd(p.margen_incremental_usd_sd), pct(p.reduccion_fuga_pct, 2), num(p.clientes_alcanzados)]));
+
+  const esc = ['pesimista', 'realista', 'optimista'];
+  const series = clave => esc.map((e, i) => ({
+    nombre: `efecto ${num(P.campana[e].efecto, 2)}`, corto: `efecto ${num(P.campana[e].efecto, 2)}`, color: COLOR_EFECTO[i],
+    puntos: P.campana[e].curva.map(p => ({ x: p.presupuesto, y: p[clave] })),
+  }));
+  leyenda('ley-economia', esc.map((e, i) => ({ nombre: `efecto ${nombreEfecto(P.campana[e].efecto)}`, color: COLOR_EFECTO[i] })));
+  const xEco = { min: 0, max: 300000, ticks: [0, 100000, 200000, 300000], fmt: v => 'USD ' + compacto(v), fmtTip: v => usd(v), titulo: 'Presupuesto por trimestre' };
+  const ref = P.referencia.presupuesto;
+  graficoLineas('g-economia-b', {
+    alto: 270, aria: 'Beneficio neto de la campaña según el presupuesto', x: xEco, etiquetasFin: true,
+    y: { fmt: v => usdCorto(v), fmtTip: v => usd(v) },
+    refs: [{ eje: 'x', valor: ref, texto: `USD ${compacto(ref)}` }],
+    series: series('neto'),
+  });
+  graficoLineas('g-economia-r', {
+    alto: 270, aria: 'Reducción de la fuga según el presupuesto', x: xEco, etiquetasFin: true,
+    y: { fmt: v => num(v) + ' %', fmtTip: v => pct(v, 2) },
+    refs: [{ eje: 'y', valor: 15, texto: 'meta −15 %' }, { eje: 'x', valor: ref, texto: `USD ${compacto(ref)}` }],
+    series: series('reduccion'),
+  });
+  const real = P.campana.realista;
+  const ultimaPositiva = [...real.curva].reverse().find(p => p.neto > 0);
+  tablaVista('t-economia', [{ nombre: 'Escenario' }, { nombre: 'Efecto', num: true }, { nombre: 'Presupuesto óptimo', num: true }, { nombre: 'Beneficio en el óptimo', num: true }, { nombre: `Neto con USD ${compacto(ref)}`, num: true }, { nombre: 'Reducción máxima', num: true }],
+    esc.map(e => [NOMBRE_ESCENARIO[e], num(P.campana[e].efecto, 2), usd(P.campana[e].presupuesto_optimo), usd(P.campana[e].neto_optimo), usd(P.campana[e].en_referencia.neto), pct(P.campana[e].reduccion_maxima, 1)]));
+  $('lectura-campana').textContent = '';
+  $('lectura-campana').append(html('b', null, 'Con el efecto realista, la campaña grande no se paga. '),
+    document.createTextNode(`Con USD ${num(ref)} pierde ${usd(Math.abs(real.en_referencia.neto))} por trimestre; solo gana dinero por debajo de unos ${usd(ultimaPositiva ? ultimaPositiva.presupuesto : 0)}, con el óptimo en ${usd(real.presupuesto_optimo)}. Para no perder con USD ${num(ref)}, el efecto debe ser de al menos ${num(P.referencia.efecto_equilibrio, 2)}, y la meta de −15 % no se alcanza con ningún presupuesto (máximo ${pct(real.reduccion_maxima, 1)}).`));
+}
+
+function pintarSistema(escenario) {
+  const s = P.sistema[escenario];
+  llenarCifras('cifras-sistema', [
+    ['VPN a 36 meses', usd(s.vpn), `efecto ${num(s.efecto, 2)}`, s.vpn >= 0 ? 'positivo' : 'negativo'],
+    ['Recuperación', s.payback_meses != null ? `${num(s.payback_meses, 1)} meses` : 'No se recupera', 'incluye un trimestre de piloto sin beneficio'],
+    ['Costo total a 3 años', usd(s.tco_3a), 'desarrollo, operación y costos ocultos'],
+    ['Margen adicional por trimestre', usd(s.delta_margen_trimestre), 'frente a la campaña masiva'],
+    ['Nube por mes', usd(s.nube_mes_usd, 2), 'precios de AWS, duración medida en LocalStack'],
+  ]);
+  $('sub-flujo').textContent = `Escenario ${escenario}. El primer trimestre es el piloto en modo sombra: tiene costos y no beneficios.`;
+  const puntos = s.acumulado.map((v, i) => ({ x: i, y: v }));
+  const destacados = [];
+  if (s.payback_meses != null) destacados.push({ x: s.payback_meses, y: 0, texto: `se recupera en el mes ${num(s.payback_meses, 1)}`, color: '--s1', izquierda: false, abajo: true });
+  graficoLineas('g-flujo', {
+    alto: 260, aria: 'Flujo neto acumulado del sistema',
+    x: { min: 0, max: puntos.length - 1, ticks: [0, 6, 12, 18, 24, 30, 36], fmt: v => String(v), titulo: 'Mes', prefijo: 'Mes ' },
+    y: { fmt: v => usdCorto(v), fmtTip: v => usd(v) },
+    series: [{ nombre: 'flujo acumulado', color: s.vpn >= 0 ? '--s1' : '--d-neg', puntos, area: true }],
+    destacados,
+  });
+  tablaVista('t-flujo', [{ nombre: 'Mes' }, { nombre: 'Flujo acumulado', num: true }],
+    puntos.filter(p => p.x % 3 === 0).map(p => [String(p.x), usd(p.y)]));
+}
+
+function pintarSistemaFijo() {
+  segmentos('c-escenario', ['pesimista', 'realista', 'optimista'].map(e => ({ valor: e, texto: NOMBRE_ESCENARIO[e] })), 'realista', pintarSistema);
+  pintarSistema('realista');
+
+  const vv = P.vpn_vs_efecto, eq = P.equilibrio;
+  leyenda('ley-vpn', [{ nombre: 'frente a la campaña masiva', color: '--s1' }, { nombre: 'frente a la regla de recencia', color: '--s2' }]);
+  graficoLineas('g-vpn', {
+    alto: 270, aria: 'VPN del sistema según el efecto de una promoción', etiquetasFin: true,
+    x: { min: 0, max: 0.35, ticks: [0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35], fmt: v => num(v, 2), titulo: 'Efecto base de una promoción', prefijo: 'Efecto ' },
+    y: { fmt: v => usdCorto(v), fmtTip: v => usd(v) },
+    refs: [{ eje: 'x', valor: 0.10, texto: 'realista 0,10' }],
+    series: [
+      { nombre: 'frente a la masiva', corto: 'vs. masiva', color: '--s1', puntos: vv.map(p => ({ x: p.efecto, y: p.aleatorio })) },
+      { nombre: 'frente a recencia', corto: 'vs. recencia', color: '--s2', puntos: vv.map(p => ({ x: p.efecto, y: p.recencia })) },
+    ],
+  });
+  $('lectura-vpn').textContent = `El VPN es cero con un efecto de ${num(eq.efecto_minimo_vpn0, 3)} frente a la campaña masiva y de ${num(eq.efecto_minimo_vpn0_contra_recencia, 3)} frente a la regla de recencia. En el escenario pesimista haría falta un efecto de ${num(eq.efecto_minimo_vpn0_escenario_pesimista, 3)}.`;
+  tablaVista('t-vpn', [{ nombre: 'Efecto' }, { nombre: 'VPN vs. masiva', num: true }, { nombre: 'VPN vs. recencia', num: true }],
+    vv.map(p => [num(p.efecto, 3), usd(p.aleatorio), usd(p.recencia)]));
+
+  const filas = P.tornado.map(t => ({ variable: t.variable, bajo: Math.min(t.vpn_pesimista, t.vpn_optimista), alto: Math.max(t.vpn_pesimista, t.vpn_optimista) }));
+  leyenda('ley-tornado', [{ nombre: 'Supuesto en su valor pesimista', color: '--d-neg' }, { nombre: 'Supuesto en su valor optimista', color: '--d-pos' }], true);
+  graficoTornado('g-tornado', {
+    aria: 'Sensibilidad del VPN a cada supuesto', filas, base: P.sistema.realista.vpn,
+    fmt: v => usdCorto(v), fmtEje: v => usdCorto(v), textoBase: `VPN realista: ${usd(P.sistema.realista.vpn)}`,
+  });
+  tablaVista('t-tornado', [{ nombre: 'Supuesto' }, { nombre: 'VPN pesimista', num: true }, { nombre: 'VPN optimista', num: true }],
+    P.tornado.map(t => [t.variable, usd(t.vpn_pesimista), usd(t.vpn_optimista)]));
+}
+
+function pintarValidacion() {
+  const cont = $('tabla-criterios'); cont.textContent = '';
+  const t = html('table'), cab = html('thead'), cuerpo = html('tbody'), tr = html('tr');
+  ['', 'Métrica', 'Criterio', 'Medido', 'Estado'].forEach(n => { const th = html('th', n === 'Medido' ? 'num' : null, n); th.scope = 'col'; tr.appendChild(th); });
+  cab.appendChild(tr);
+  for (const c of P.criterios) {
+    const r = html('tr');
+    const met = html('td'); met.appendChild(document.createTextNode(c.metrica));
+    if (c.nota) { met.appendChild(html('br')); met.appendChild(html('span', null, c.nota)).style.cssText = 'color:var(--muted);font-size:12px'; }
+    const est = html('td'); est.appendChild(pastillaEstado(c.estado));
+    r.append(html('td', null, c.id), met, html('td', null, c.criterio), html('td', 'num', c.medido), est);
+    cuerpo.appendChild(r);
+  }
+  t.append(cab, cuerpo); cont.appendChild(t);
+
+  const pi = P.piloto, mde = pi.mde_relativo_pct, ef = pi.efectos_relativos_pct;
+  $('sub-piloto').textContent = `Reducción relativa de la fuga que el piloto detecta con 80 % de potencia y α = 5 %, calculada con la fuga observada en la lista (${pct(100 * pi.fuga_observada, 1)}).`;
+  const realista = ef['0.1'], pesimista = ef['0.04'];
+  graficoBarras('g-piloto', {
+    aria: 'Efecto mínimo detectable según el diseño del piloto',
+    filas: [
+      { etiqueta: `Una región (${num(pi.clientes)} clientes), control 20 %`, valor: mde.una_region_control_20, color: '--s1', destacada: true },
+      { etiqueta: 'Una región, control 30 %', valor: mde.una_region_control_30, color: '--base' },
+      { etiqueta: 'Dos regiones, control 20 %', valor: mde.dos_regiones_control_20, color: '--base' },
+    ].map(f => ({ ...f, texto: pct(f.valor, 1) })),
+    refs: [{ valor: 5, texto: 'criterio ≤ 5 %' }, { valor: realista, texto: `efecto realista ${pct(realista, 1)}` }],
+    fmt: v => pct(v, 1), fmtEje: v => num(v) + ' %',
+  });
+  $('lectura-piloto').textContent = `El diseño elegido (una región, control de 20 %) cumple el criterio y detecta el efecto realista (${pct(realista, 1)}), pero no el pesimista (${pct(pesimista, 1)}), que queda por debajo de su efecto mínimo detectable. Si el piloto midiera un efecto cercano al pesimista, se amplía a una segunda región o se sube el control a 30 %.`;
+}
+
+function pintarArquitectura() {
+  const d = P.datos, n = P.nube;
+  $('arq-entrada').textContent = 'El tablero y la API corren en local. Para la nube se escribió un manejador de AWS Lambda con las mismas rutas, sin tablero. Se desplegó en AWS Academy en septiembre; al perder ese acceso, el despliegue vigente se valida en LocalStack, un emulador de AWS. Falta repetirlo en AWS real.';
+  const arq = $('arq'); arq.textContent = '';
+  const carril = (titulo, entorno, pasos) => {
+    const c = html('div', 'carril');
+    const h = html('h3', null, titulo); h.appendChild(html('span', 'etiqueta-entorno', entorno)); c.appendChild(h);
+    for (const [b, p, clase] of pasos) { const s = html('div', 'paso' + (clase ? ' ' + clase : '')); s.append(html('b', null, b), html('p', null, p)); c.appendChild(s); }
+    return c;
+  };
+  arq.append(
+    carril('Procesamiento por lotes · mensual', 'local', [
+      ['1 · Ingesta', `DuckDB en streaming: CSV de ${num(d.csv_gb, 1)} GB a Parquet de ${num(d.parquet_gb, 2)} GB, 11 de 40 columnas.`],
+      ['2 · Segmentación RFM', `${num(P.resumen.clientes)} clientes; VIP = percentil 80 del gasto (${num(P.resumen.vips)}).`],
+      ['3 · Modelo de abandono', `HistGradientBoosting, 11 variables, validación temporal (AUC ${num(P.modelo.auc, 3)}).`],
+      ['4 · Población de agentes', `${num(P.resumen.agentes)} agentes con probabilidad de fuga, margen y receptividad.`],
+    ]),
+    carril('Consulta bajo demanda · segundos', 'local y nube emulada', [
+      ['A · Tablero y API FastAPI', 'Este tablero y /docs; responde cada escenario en 0,3 a 0,6 s en local.'],
+      ['B · Simulador basado en agentes', 'Campaña frente a control con el mismo azar; saturación y decaimiento como supuestos.'],
+      ['C · Manejador Lambda + S3 en LocalStack', n ? `Mismas rutas, sin tablero. p95 ${num(n.p95_caliente_ms / 1000, 2)} s en caliente; arranque en frío ${num(n.frio_mediana_ms / 1000, 1)} s de mediana; ${n.pruebas_nube ? `${n.pruebas_nube.aprobadas} de ${n.pruebas_nube.casos} pruebas con paridad exacta` : ''}. LocalStack no aplica IAM: la firma se verificó solo en la configuración.` : 'Mismas rutas que la API local, sin tablero.', 'nube'],
+    ]),
+  );
+}
+
+function pintarPie() {
+  const pie = $('pie'); pie.textContent = '';
+  pie.append(
+    html('span', null, `Cifras generadas desde data/artifacts (re-ejecución del 02/10/2026) · panel construido el ${P.generado.replace('T', ' ')}.`),
+    html('span', null, ESTATICO
+      ? 'Versión estática: los escenarios se resolvieron de antemano con el simulador; la página contiene solo agregados, ningún dato por cliente.'
+      : 'Versión local: el simulador corre en vivo sobre la población en memoria.'),
+  );
+  if (!ESTATICO) {
+    const s = html('span'); const a = html('a', null, 'Documentación técnica de la API (/docs)'); a.href = '/docs'; s.appendChild(a); pie.appendChild(s);
+  }
+}
+
+(async function iniciar() {
+  try {
+    P = await fuente.panel();
+  } catch (e) {
+    const caja = $('error-general'); caja.hidden = false;
+    caja.textContent = `No se pudo cargar el panel: ${e.message}. Arranca la API desde src con: python -m uvicorn api.main:app --port 8080`;
+    $('modo-texto').textContent = 'Sin conexión con la API';
+    return;
+  }
+  pintarCabecera(ESTATICO ? null : await api('/health').catch(() => null));
+  pintarResumen();
+  pintarProblema();
+  pintarModelo();
+  construirControles();
+  pintarEfecto();
+  pintarCampana();
+  pintarSistemaFijo();
+  pintarValidacion();
+  pintarArquitectura();
+  pintarPie();
+  simular();
+})();
 </script>
 </body>
 </html>
