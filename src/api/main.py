@@ -35,6 +35,7 @@ from simulation.simulador import (  # noqa: E402
     fila_barrido,
     simular,
 )
+from api.panel import construir_panel  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = ROOT / "data" / "artifacts"
@@ -85,6 +86,8 @@ class SolicitudBarrido(BaseModel):
     )
     promos_por_cliente: int = Field(default=2, ge=1, le=10)
     criterio: Literal["riesgo", "valor", "valor_en_riesgo", "aleatorio", "recencia"] = "valor_en_riesgo"
+    costo_promo_usd: float = Field(default=1.20, gt=0, le=100)
+    efecto_promo: float = Field(default=EFECTO_PROMO_BASE, ge=0.0, le=0.95)
 
 
 @app.on_event("startup")
@@ -135,6 +138,15 @@ def modelo() -> dict[str, Any]:
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
+@app.get("/v1/panel")
+def panel() -> dict[str, Any]:
+    """Cifras y series agregadas que grafica el tablero (sin datos por cliente)."""
+    try:
+        return construir_panel()
+    except (FileNotFoundError, KeyError, IndexError) as exc:
+        raise HTTPException(status_code=404, detail=f"Faltan artefactos para el panel: {exc}") from exc
+
+
 @app.get("/v1/poblacion")
 def poblacion_en_vivo() -> dict[str, Any]:
     """Muestra la poblacion de agentes en vivo: deciles de riesgo y de valor."""
@@ -180,8 +192,10 @@ def barrido(payload: SolicitudBarrido) -> dict[str, Any]:
             Escenario(
                 nombre=f"barrido_{int(presupuesto)}",
                 presupuesto_usd=presupuesto,
+                costo_promo_usd=payload.costo_promo_usd,
                 promos_por_cliente=payload.promos_por_cliente,
                 criterio=payload.criterio,
+                efecto_promo=payload.efecto_promo,
             ),
             pob,
         )

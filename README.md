@@ -23,12 +23,19 @@ presupuesto hace falta, y a quién dirigirlo, para mover realmente la aguja?*
 |---|---|---|
 | Concentración de ingreso en el 20% VIP | 70–80% | **80.26%** (sin las 4 cuentas genéricas) |
 | AUC del modelo de abandono | ≥ 0.75 | **0.8753** (regla simple por recencia: 0.8254) |
-| Respuesta de escenario | < 10 min | **0.3–0.6 s** en local |
+| Respuesta de escenario | < 10 min | **0.3–0.6 s** en local; en Lambda emulada (LocalStack) p95 0.18 s en caliente y 7.8 s máx. en arranque en frío |
 | Reducción de fuga VIP | −15% | **−15.05%** con USD 139.000/trimestre, *solo con el efecto del guion* |
-| ROI de retención | 3:1 | **6.08:1 sobre ingreso, 1.39:1 sobre margen** en ese punto |
+| ROI de retención | 3:1 | **6.08:1 sobre ingreso, 1.39:1 sobre margen** en ese punto, *solo con el efecto del guion* |
 
-Sobre **72.5 millones de transacciones** (22.2 GB) de 3.1 millones de clientes en 682
-sucursales, a lo largo de 12 meses. El pipeline completo corre en ~7 minutos.
+Las dos filas condicionadas dependen del efecto de una promoción, que el guion supone en
+0.35 y los datos no permiten estimar. Con el efecto realista (0.10, anclado en la
+literatura) la misma campaña de USD 139.000 reduce la fuga **4.3%** y retorna **1.75** de
+ingreso y **0.40** de margen por dólar; la meta de −15% no se alcanza con ningún
+presupuesto (máximo −9.7%).
+
+Sobre **72.5 millones de líneas de venta** (39.1 millones de tickets, 22.2 GB) de 3.1
+millones de clientes en 682 sucursales, a lo largo de 12 meses. El pipeline completo corre
+en ~7 minutos.
 
 El análisis costo/beneficio (`src/evaluacion/`) muestra que el **sistema** es rentable
 frente a la práctica actual en el escenario realista (VPN USD 289.006 a 3 años, payback
@@ -40,21 +47,28 @@ El entregable completo está en `Presentaciones/entregables/`.
 
 Un modelo agregado —una cadena de Markov, por ejemplo— asume homogeneidad y trata a
 todos los VIP por igual. El simulador basado en agentes captura una no linealidad
-individual que el promedio disuelve: **el cliente que recibe tres promociones en un
-mes se satura y deja de responder por completo**.
+individual que el promedio disuelve: **el cliente que recibe tres promociones en el
+período simulado (un trimestre) se satura y deja de responder por completo**. El guion
+lo enuncia por mes; la implementación lo aplica sobre el trimestre.
 
 Con presupuesto fijo, variando solo la insistencia por cliente:
 
-| Promociones por cliente | ROI (ingreso) | ROI (margen) | Clientes saturados |
-|---|---|---|---|
-| 1 | 26.86 | 6.12 | 0 |
-| 2 | **27.03** | **6.29** | 0 |
-| **3** | **0.00** | **0.00** | **1.388** |
-| 4 | 0.00 | 0.00 | 1.041 |
+| Promociones por cliente | ROI (ingreso) | ROI (margen) | Reducción de fuga | Clientes saturados |
+|---|---|---|---|---|
+| 1 | 26.86 | 6.12 | 0.80% | 0 |
+| 2 | **27.03** | **6.29** | 0.62% | 0 |
+| **3** | **0.00** | **0.00** | 0.00% | **1.388** |
+| 4 | 0.00 | 0.00 | 0.00% | 1.041 |
 
 (Presupuesto fijo de USD 5.000 con el efecto del guion.)
 
-El desplome a cero en la tercera promoción es el argumento de la tesis, cuantificado.
+El desplome a cero en la tercera promoción es el argumento de la tesis, cuantificado, pero
+conviene leerlo con su alcance: el umbral de 3 y el decaimiento marginal (0.55 por
+promoción adicional) son **parámetros del modelo**, no resultados medidos en los clientes.
+Lo que el simulador demuestra es que, si existe saturación individual, un modelo agregado
+no la ve. La ventaja de 2 promociones sobre 1 es pequeña (+2.8% de ROI sobre margen) y la
+reducción de fuga es de hecho algo menor, porque con 2 promociones se alcanza a la mitad
+de los clientes.
 
 ## Arquitectura
 
@@ -64,18 +78,18 @@ El desplome a cero en la tercera promoción es el argumento de la tesis, cuantif
 CSV crudo (22 GB)                                                                             │
       │  DuckDB en streaming, proyección 40 → 11 columnas                                     │
       ▼                                                                                       │
-Parquet particionado (marca, mes) — 1.25 GB, compresión 17.8×                                  │
+Parquet particionado (marca, mes) — 1.49 GB, compresión 14.9×                                  │
       │                                                                                       │
       ├─► Tabla de tickets (39.1M) ──► RFM ──► segmento VIP ─────────────┐                    │
       │                                      │                            │                    │
       │                                      ▼                            │                    │
       │                            Modelo de abandono                     │                    │
-      │                       (validación temporal, AUC 0.87)             │                    │
+      │                      (validación temporal, AUC 0.875)             │                    │
       │                                      │                            │                    │
       │                                      ▼                            ▼                    │
       └─────────────────────────────► Simulador multiagente ─────► FastAPI local (dashboard)   │
-                                  (538,983 agentes VIP)            · / → dashboard interactivo │
-                                      │                            · respuestas 1–3 s          │
+                                  (538,982 agentes VIP)            · / → dashboard interactivo │
+                                      │                            · respuestas 0.3–0.6 s      │
                                       └──► serializa scores       · poblacion cacheada        │
                                               ▼                                                 │
                                      ┌──────────────────────── ──┐                             │
@@ -84,6 +98,10 @@ Parquet particionado (marca, mes) — 1.25 GB, compresión 17.8×               
                                      │  coste cero en reposo     │
                                      └───────────────────────────┘
 ```
+
+El bloque AWS se desplegó y midió sobre **LocalStack** (AWS emulado en local), no en una
+cuenta real: se perdió el acceso a AWS Academy. La función Lambda es
+`infra/lambda_handler.py` (mismas rutas que la API local); FastAPI no corre en Lambda.
 
 Una vista gráfica (diagrama de flujo con métricas, algoritmo de saturación y
 ambas vías de consumo) está en **`diagrama_arquitectura.pdf`**, regenerable con:
@@ -100,15 +118,18 @@ src/features/rfm.py             Segmentación RFM y definición del segmento VIP
 src/models/churn.py             Modelo de abandono con validación temporal
 src/simulation/simulador.py     Simulador multiagente con saturación
 src/api/main.py                 API de escenarios (FastAPI) + endpoints de visibilidad
-src/api/dashboard.html          Dashboard web interactivo servido en la raíz
+src/api/panel.py                Cifras y series agregadas del tablero (GET /v1/panel)
+src/api/dashboard.html          Tablero web servido en la raíz (también es la plantilla de la versión estática)
 src/evaluacion/                 Análisis costo/beneficio, figuras y criterios de validación
 infra/lambda_handler.py         Versión serverless para AWS Lambda (mismas rutas que la API)
 infra/desplegar.py              Despliegue idempotente: S3 + Lambda + Function URL (AWS_IAM)
+infra/localstack/               Script que levanta AWS emulado (LocalStack 4.14.0 en Docker/WSL2)
 infra/pruebas_funcionales.py    Rutas, entradas inválidas, casos borde y paridad nube = local
 infra/prueba_carga.py           Latencia p50/p95, arranque en frío, concurrencia y costo real
 ejecutar_pipeline.py            Corre las cuatro etapas y registra tiempo y RAM de cada una
 descargar_datos.py              Descarga del dataset desde Google Drive (OAuth2)
 generar_diagrama.py             Genera el PDF gráfico de arquitectura
+generar_pagina_estatica.py      Versión estática del tablero (web/), sin API ni datos por cliente
 PROGRESO.md                     Registro de implementación, decisiones y problemas
 ```
 
@@ -137,6 +158,23 @@ export AWS_ENDPOINT_URL=http://localhost:4566 AWS_ACCESS_KEY_ID=test AWS_SECRET_
 ./.venv/Scripts/python infra/prueba_carga.py                  # latencia y costo por consulta
 ./.venv/Scripts/python src/evaluacion/costo_beneficio.py      # ROI, payback, VPN, TCO, escenarios
 ./.venv/Scripts/python Presentaciones/entregables/construir_costo_beneficio.py   # PDF del entregable
+```
+
+## Tablero
+
+`http://localhost:8080/` sirve el tablero con la API en vivo: concentración del ingreso,
+validación temporal del modelo (ROC y calibración), simulador de campañas, economía de la
+campaña y del sistema (VPN, recuperación, tornado), criterios de validación y piloto. Las
+series salen de `data/artifacts` a través de `GET /v1/panel`; ninguna cifra está escrita a mano.
+
+Para verlo sin correr la API, `generar_pagina_estatica.py` precalcula 720 escenarios
+(presupuesto × promociones × criterio × efecto, ~5 min la primera vez) y escribe
+`web/index.html`, que se abre con doble clic o se aloja en GitHub Pages. La página solo
+contiene agregados; para la misma elección da las mismas cifras que la API en vivo.
+
+```bash
+./.venv/Scripts/python generar_pagina_estatica.py            # usa la grilla en cache
+./.venv/Scripts/python generar_pagina_estatica.py --recalcular
 ```
 
 Los datos crudos se leen de `data/Unprocessed/` (o de `Datos/`, si vienen de la descarga):
@@ -189,6 +227,18 @@ Los ROI absolutos dependen enteramente de ese supuesto. Lo que sí es robusto es
 *forma* de las curvas: la existencia del desplome por saturación y los rendimientos
 marginales decrecientes. Calibrar ese parámetro requiere el piloto en modo sombra
 que el proyecto propone como siguiente paso.
+
+Otras dos limitaciones medidas en la re-ejecución del 02/10/2026:
+
+- **Calibración del modelo.** El sesgo medio es +1.13 pp, pero se concentra en el decil de
+  mayor riesgo (85.9% predicho, 76.1% observado), que contiene al 69% de la lista del
+  sistema. En la lista, la fuga predicha es 73.8% y la observada 64.4%. Corregido con la
+  fuga observada, el VPN realista baja de USD 289.006 a USD 241.750 (sigue positivo). Se
+  recalibrará por decil antes del piloto.
+- **Nube emulada.** LocalStack Community no limita la CPU como una Lambda de 2 GB ni aplica
+  IAM (una petición sin firma devuelve 200; en AWS sería 403). Los tiempos son optimistas y
+  la seguridad de la Function URL solo se verificó en su configuración. Repetir en una
+  cuenta real de AWS sigue pendiente.
 
 Con 2 promociones y la receptividad media de los agentes, el 0.35 equivale a reducir la
 fuga un 35% entre los tratados, el doble del mejor resultado de los experimentos de campo

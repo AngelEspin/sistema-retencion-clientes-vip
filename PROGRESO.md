@@ -21,6 +21,31 @@ Registro de lo construido, las decisiones tomadas y los problemas encontrados.
 Las cifras de esta tabla son las de la re-ejecución del 02/10/2026 (Paso 8), que corrigió
 cuatro defectos que inflaban o deformaban los resultados anteriores.
 
+### Vigencia de las cifras
+
+Los Pasos 1 a 7 conservan, como registro histórico, las cifras de la primera ejecución
+(24/08–24/09/2026). Donde difieren, **vale el Paso 8**:
+
+| Concepto | Primera ejecución (Pasos 2–7) | Vigente (Paso 8) |
+|---|---|---|
+| Parquet de ventas | 1.25 GB (17.8×) | 1.49 GB (14.9×): ahora conserva `p_costo` |
+| Ingesta | 1.7 min | 2.9 min |
+| Clientes identificados / VIP | 3.099.815 / 619.963 | 3.099.811 / 619.963 (se excluyen 4 cuentas genéricas) |
+| Umbral VIP | USD 75.58 | USD 75.57 |
+| Concentración del ingreso en el 20% VIP | 82.63% | 80.26% |
+| AUC / AP / Brier | 0.8745 / 0.6633 / 0.1007 | 0.8753 / 0.6632 / 0.1005 |
+| Agentes simulados | 538.983 | 538.982 |
+| Presupuesto mínimo para −15% de fuga | USD 150.000 (−18.28%, ROI 5.04) | USD 139.000 (−15.05%, ROI 6.08 ingreso / 1.39 margen) |
+| Latencia local | 1–3 s | 0.3–0.6 s |
+| Nube | AWS Academy (Lambda real) | LocalStack 4.14.0: se perdió el acceso a AWS Academy |
+| Exposición de la Lambda | Pendiente de decisión | Function URL `AWS_IAM` (verificada en LocalStack) |
+
+Las cifras de reducción de fuga y ROI de la tabla anterior dependen del efecto de una
+promoción que el guion supone en 0.35. Con el efecto realista (0.10) la campaña de
+USD 139.000 reduce la fuga 4.3% y retorna 1.75 de ingreso y 0.40 de margen por dólar. El
+umbral de saturación (3) y el decaimiento marginal (0.55) también son parámetros del
+modelo, no estimaciones de los datos.
+
 ---
 
 ## Restricciones reales del entorno
@@ -53,6 +78,12 @@ Entorno virtual con **Python 3.13.2**. Dependencias: `duckdb 1.5.5`, `pyarrow 25
 
 **Nota:** `mesa 3.5.1` importa `networkx` sin declararlo como dependencia obligatoria.
 Hubo que añadirlo a mano.
+
+**Actualización:** la implementación final no usa Mesa. El simulador es vectorizado
+(NumPy y pandas), porque la planificación objeto por objeto de Mesa sobre 538.982 agentes
+es incompatible con una respuesta interactiva. La semántica multiagente se conserva: cada
+agente mantiene su probabilidad de fuga, su gasto, su receptividad y su contador de
+promociones. Ningún módulo importa `mesa`.
 
 ---
 
@@ -296,6 +327,10 @@ de que el despliegue no alteró la lógica.
 
 ### Pendiente de tu decisión: el endpoint público
 
+> **Resuelto en el Paso 8:** se adoptó la opción 2 (Function URL con `AWS_IAM`), verificada
+> en LocalStack. En una cuenta real de AWS la petición sin firma debe devolver 403; ahí
+> aún no se ha comprobado.
+
 Intenté crear una **Function URL** con `auth-type NONE`, y quedó bloqueada por
 política de seguridad: expondría la API a internet sin autenticación alguna, y esa
 Lambda lee datos de clientes. La función está desplegada y verificada por invocación
@@ -354,6 +389,15 @@ La campaña de USD 139.000 solo es rentable si el efecto base real es ≥ 0.25. 
 efecto realista anclado en la literatura (0.10), el presupuesto óptimo es ~USD 4.000 por
 trimestre y la meta de −15% no se alcanza con ningún presupuesto (máximo −9.7%).
 
+**Calibración en la lista focalizada.** El sesgo medio del modelo es +1.13 pp, pero se
+concentra en el decil de mayor riesgo (85.9% predicho, 76.1% observado), y el 69% de la
+lista del sistema está en ese decil. En la lista, la fuga predicha es 73.8% y la observada
+64.4%. Corrigiendo el margen con la fuga observada, el Δ realista baja de USD 42.302 a
+USD 35.841 por trimestre y el VPN de USD 289.006 a USD 241.750 (sigue positivo). Con la
+fuga observada, el MDE del piloto regional sube de 3.5% a 4.3%: cumple T6 (≤ 5%) pero ya
+no detecta el efecto pesimista (4.0%). Cálculo en `calibracion_lista()` de
+`costo_beneficio.py`; las figuras del entregable salen de `src/evaluacion/figuras_cb.py`.
+
 ### Validación
 
 Criterios registrados antes de medir en `src/evaluacion/criterios_validacion.json`.
@@ -386,6 +430,28 @@ luego exportar `AWS_ENDPOINT_URL=http://localhost:4566` con credenciales `test`/
 
 ---
 
+## Paso 9 — Tablero ampliado y versión estática (27/10/2026)
+
+El tablero de `localhost:8080` mostraba cifras de la primera ejecución (82,63 %, 538 983
+agentes, 1,25 GB, AUC 0,874, "Mesa", "respuestas 1–3 s"), presentaba la nube como "AWS
+SERVERLESS" y tenía fijo un presupuesto de USD 250 000 para la meta de −15 %. Se rehízo:
+
+- **Datos del panel desde los artefactos.** `src/api/panel.py` arma las series agregadas
+  (curva de concentración, ROC, calibración, efecto por promociones, políticas, economía de
+  la campaña, flujo acumulado, tornado, VPN según el efecto, matriz de validación y piloto)
+  y la API las sirve en `GET /v1/panel`. Ninguna cifra está escrita a mano.
+- **Simulador con el efecto como control.** El tablero elige presupuesto, promociones por
+  cliente, criterio y efecto (0,04, 0,10 o 0,35). `/v1/barrido` acepta ahora `efecto_promo`
+  y `costo_promo_usd` (con los valores anteriores por defecto).
+- **Versión estática.** `generar_pagina_estatica.py` precalcula 720 escenarios (5 min) y los
+  incrusta con el panel en `web/index.html` (0,47 MB). Solo contiene agregados: ningún ID de
+  cliente. Se verificó que la versión en vivo y la estática dan cifras idénticas para siete
+  combinaciones y para el barrido.
+- **Nube descrita como es.** La sección de arquitectura dice que el tablero y la API corren en
+  local, que el manejador Lambda se valida en LocalStack sin tablero y que falta AWS real.
+
+---
+
 ## Pendiente
 
 - [x] Completar en el handler de Lambda las rutas `/v1/poblacion` y `/v1/simular/pasos`
@@ -394,6 +460,8 @@ luego exportar `AWS_ENDPOINT_URL=http://localhost:4566` con credenciales `test`/
 - [x] Exponer la Lambda: Function URL con `AWS_IAM` (verificada en LocalStack)
 - [ ] Backtest o piloto contra campañas reales ejecutadas (requiere datos de campañas,
       que no están en el dataset actual)
+- [ ] Recalibrar el modelo por decil (p. ej., isotónica sobre un corte de validación, no
+      sobre el de prueba) antes del piloto: en la lista focalizada el sesgo es +9.5 pp
 - [ ] Control Room: tablero de deriva (PSI, caída de AUC, simulación vs realidad)
 - [ ] Step Functions para orquestar el recálculo mensual de RFM
 
