@@ -1397,11 +1397,12 @@ function pintarArquitectura() {
 
 function pintarPie() {
   const pie = $('pie'); pie.textContent = '';
+  const [anio, mes, dia] = P.generado.slice(0, 10).split('-');
   pie.append(
-    html('span', null, `Cifras generadas desde data/artifacts (re-ejecución del 02/10/2026) · panel construido el ${P.generado.replace('T', ' ')}.`),
+    html('span', null, `Espín · Ramírez — Maestría en Ciencia de Datos, ESPOL. Datos de julio de 2025 a junio de 2026; actualizado el ${dia}/${mes}/${anio}.`),
     html('span', null, ESTATICO
-      ? 'Versión estática: los escenarios se resolvieron de antemano con el simulador; la página contiene solo agregados, ningún dato por cliente.'
-      : 'Versión local: el simulador corre en vivo sobre la población en memoria.'),
+      ? 'Resultados calculados previamente con el simulador. La página no contiene datos de clientes.'
+      : `Simulación sobre ${num(P.resumen.agentes)} clientes VIP.`),
   );
   if (!ESTATICO) {
     const s = html('span'); const a = html('a', null, 'Documentación técnica de la API (/docs)'); a.href = '/docs'; s.appendChild(a); pie.appendChild(s);
