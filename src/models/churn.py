@@ -1,13 +1,12 @@
 """Modelo de abandono (churn) de clientes VIP con validacion temporal estricta.
 
-El guion fija un objetivo de **AUC >= 0.75**. Ese numero solo significa algo si
-la validacion no tiene fuga de informacion, asi que aqui la separacion es
-temporal y no aleatoria.
+Objetivo: AUC >= 0.75. La validacion es temporal y no aleatoria para
+que el AUC no se infle por fuga de informacion.
 
 Diseno del experimento
 ----------------------
-Se elige un punto de decision C. Las variables se calculan **solo** con
-transacciones anteriores a C. La etiqueta se observa **despues** de C:
+Se elige un punto de decision C. Las variables se calculan solo con
+transacciones anteriores a C y la etiqueta se observa despues de C:
 
     features: [inicio, C)          etiqueta: hubo compra en [C, C + 90 dias)?
 
@@ -17,8 +16,8 @@ modelo nunca ve el periodo con el que se le evalua:
     ENTRENAMIENTO  C = 2026-01-01   etiqueta observada ene-mar 2026
     PRUEBA         C = 2026-04-01   etiqueta observada abr-jun 2026
 
-Un split aleatorio daria un AUC mas alto y completamente enganoso, porque el
-mismo cliente aparecería a ambos lados de la particion.
+Con un split aleatorio el AUC saldria mas alto, porque el mismo cliente
+quedaria en entrenamiento y en prueba.
 """
 
 from __future__ import annotations

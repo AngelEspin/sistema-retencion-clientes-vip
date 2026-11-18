@@ -31,8 +31,13 @@ credentials.json
 token.json
 client_secret*.json
 
-# --- Presentaciones (material pesado del curso) -----------------------------
-Presentaciones/*.pdf
+# --- Material de clase y de la defensa (fuera del repositorio) --------------
+Presentaciones/
+web/
+
+# --- Configuracion local ----------------------------------------------------
+.vscode/
+infra/localstack/iniciar_nube.ps1
 
 # --- Sistema ----------------------------------------------------------------
 desktop.ini

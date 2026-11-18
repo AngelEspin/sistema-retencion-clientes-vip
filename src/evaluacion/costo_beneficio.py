@@ -40,7 +40,7 @@ ARTIFACTS = ROOT / "data" / "artifacts"
 FIGURAS = ROOT / "Presentaciones" / "entregables" / "figuras_costo_beneficio"
 sys.path.insert(0, str(ROOT / "src"))
 
-from simulation.simulador import Escenario, cargar_poblacion, simular  # noqa: E402
+from simulation.simulador import Escenario, ModeloRetencion, cargar_poblacion, simular  # noqa: E402
 
 HORIZONTE_MESES = 36
 TRIMESTRES = HORIZONTE_MESES // 3
@@ -88,7 +88,7 @@ class Supuestos:
 
     nombre: str
     # Reduccion relativa maxima del riesgo con una promocion (parametro del
-    # simulador). Anclado a la evidencia de campo, no al guion: ver informe.
+    # simulador). Anclado a la evidencia de campo, no al supuesto de la propuesta: ver informe.
     efecto_promo: float
     # Decision de referencia del equipo comercial sin el sistema.
     linea_base: str
@@ -399,6 +399,47 @@ def efecto_minimo_detectable(presupuesto: float, costo_promo: float, fraccion_ho
             "mde_pp": 100 * mde, "mde_relativo_pct": 100 * mde / p}
 
 
+def calibracion_lista(presupuesto: float, costo_promo: float) -> dict:
+    """Fuga predicha frente a observada en la lista que elige el sistema.
+
+    El beneficio simulado es proporcional a la fuga predicha de quien recibe la
+    campana, asi que el sesgo que importa es el de la lista y no el promedio de
+    toda la poblacion. Tambien rehace el MDE del piloto con la fuga observada,
+    que es la que tendra el grupo de control real.
+    """
+    pob = poblacion()
+    p = pob["prob_abandono"].to_numpy(dtype=float)
+    y = pob["abandono_real"].to_numpy(dtype=float)
+    n_lista = int(presupuesto // costo_promo) // 2
+    seleccion = np.argsort(-(p * pob["monetario"].to_numpy(dtype=float)))[:n_lista]
+    # Peso de cada cliente en el margen salvado, tal como lo calcula el simulador:
+    # receptividad por margen trimestral (la constante del efecto se cancela).
+    m = ModeloRetencion(pob, Escenario(nombre="calibracion", presupuesto_usd=presupuesto,
+                                       costo_promo_usd=costo_promo))
+    peso = m.receptividad * m.margen_trimestral
+    observada = float(y[seleccion].mean())
+
+    def mde_relativo(holdout: float, piloto: float) -> float:
+        n = n_lista * piloto
+        n_c, n_t = n * holdout, n * (1 - holdout)
+        return 100 * 2.80 * math.sqrt(observada * (1 - observada) * (1 / n_t + 1 / n_c)) / observada
+
+    return {
+        "clientes_lista": n_lista,
+        "fuga_predicha": float(p[seleccion].mean()),
+        "fuga_observada": observada,
+        "en_decil_superior_pct": 100 * float((p[seleccion] >= np.quantile(p, 0.9)).mean()),
+        # Fraccion del margen simulado que se sostiene con la fuga observada. La
+        # campana masiva elige al azar, asi que su factor es el de toda la poblacion.
+        "factor_beneficio_sistema": float((y * peso)[seleccion].sum() / (p * peso)[seleccion].sum()),
+        "factor_beneficio_masiva": float((y * peso).sum() / (p * peso).sum()),
+        # Piloto regional = 25% de la lista.
+        "mde_relativo_pct": {"una_region_control_20": mde_relativo(0.20, 0.25),
+                             "una_region_control_30": mde_relativo(0.30, 0.25),
+                             "dos_regiones_control_20": mde_relativo(0.20, 0.50)},
+    }
+
+
 def ruido_entre_grupos(semillas: tuple[int, ...]) -> dict:
     """Con efecto verdadero cero (3 promos = saturacion), cuanto 'efecto' marca
     la comparacion ingenua tratados vs control de toda la poblacion."""
@@ -406,6 +447,78 @@ def ruido_entre_grupos(semillas: tuple[int, ...]) -> dict:
             for s in semillas]
     return {"semillas": len(vals), "media_pct": float(np.mean(vals)), "sd_pct": float(np.std(vals, ddof=1)),
             "max_abs_pct": float(np.max(np.abs(vals)))}
+
+
+# --- Series para las figuras del entregable --------------------------------------
+POLITICAS_GRAFICO = (
+    ("Sistema: valor en riesgo", "valor_en_riesgo", 2),
+    ("Solo riesgo del modelo", "riesgo", 2),
+    ("Regla RFM por recencia", "recencia", 2),
+    ("Campaña masiva sin focalizar", "aleatorio", 2),
+    ("Mayor gasto histórico", "valor", 2),
+    ("Mayor gasto, 3 promociones", "valor", 3),
+)
+EFECTOS_GRILLA = (0.0, 0.005, 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35)
+CORTE_RFM = "2026-07-01"
+
+
+def datos_graficos(real: Supuestos, presupuesto_ref: float, semillas: tuple[int, ...],
+                   semillas_eq: tuple[int, ...]) -> dict:
+    """Series de las figuras, calculadas con las mismas corridas y semillas del analisis."""
+    import duckdb
+    from sklearn.metrics import roc_curve
+
+    campos = ("margen_incremental_usd", "margen_incremental_usd_sd", "reduccion_fuga_pct",
+              "clientes_alcanzados", "clientes_saturados")
+    politicas = []
+    for etiqueta, criterio, promos in POLITICAS_GRAFICO:
+        m = promedio(presupuesto_ref, criterio, promos, real.efecto_promo, real.costo_promo_usd, semillas)
+        politicas.append({"politica": etiqueta, "criterio": criterio, "promos": promos, **{k: m[k] for k in campos}})
+
+    # Alcance frente a intensidad: con el presupuesto fijo, mas promociones por
+    # cliente llegan a menos gente, y desde la tercera el cliente se satura.
+    saturacion = []
+    for promos in (1, 2, 3, 4):
+        m = promedio(presupuesto_ref, "valor_en_riesgo", promos, real.efecto_promo, real.costo_promo_usd, semillas)
+        saturacion.append({"promos": promos, **{k: m[k] for k in campos}})
+
+    vpn_efecto = []
+    for e in EFECTOS_GRILLA:
+        fila = {"efecto": e}
+        for base in ("aleatorio", "recencia"):
+            s = replace(real, efecto_promo=e, linea_base=base)
+            fila[base] = evaluar(s, presupuesto_ref, semillas_eq)["indicadores"]["vpn"]
+        vpn_efecto.append(fila)
+
+    # Validacion tecnica sobre el conjunto de prueba (538 mil VIP nunca vistos).
+    pob = poblacion()
+    y = pob["abandono_real"].to_numpy()
+    p = pob["prob_abandono"].to_numpy()
+    grilla = np.linspace(0, 1, 101)
+
+    def roc(score: np.ndarray) -> dict:
+        fpr, tpr, _ = roc_curve(y, score)
+        return {"fpr": grilla.tolist(), "tpr": np.interp(grilla, fpr, tpr).tolist()}
+
+    calibracion = [{"predicha": float(p[i].mean()), "observada": float(y[i].mean()), "n": int(len(i))}
+                   for i in np.array_split(np.argsort(p), 10)]
+
+    # Curva de concentracion del ingreso, sin las cuentas genericas.
+    ruta = ROOT / "data" / "processed" / "rfm" / f"corte={CORTE_RFM}" / "rfm.parquet"
+    monetario = duckdb.sql(f"SELECT monetario FROM read_parquet('{ruta.as_posix()}')").fetchnumpy()["monetario"]
+    monetario = np.sort(np.asarray(monetario, dtype=float))[::-1]
+    acumulado = np.concatenate([[0.0], np.cumsum(monetario)]) / monetario.sum()
+    indices = np.round(grilla * len(monetario)).astype(int)
+
+    return {
+        "politicas_realista": politicas,
+        "saturacion_realista": saturacion,
+        "vpn_vs_efecto": vpn_efecto,
+        "roc": {"modelo": roc(p), "recencia": roc(pob["recencia"].to_numpy(dtype=float))},
+        "calibracion": calibracion,
+        "lorenz": {"x": grilla.tolist(), "y": acumulado[indices].tolist(),
+                   "clientes": int(len(monetario))},
+    }
 
 
 # --- Orquestacion ---------------------------------------------------------------
@@ -488,7 +601,7 @@ def main() -> None:
         0.0, 0.95)
     campana["efecto_para_retorno_3a1_margen_en_referencia"] = biseccion(
         lambda e: _corrida(presupuesto_ref, "valor_en_riesgo", 2, e, 1.20, 42)["roi_margen"] - 3.0, 0.0, 0.95)
-    # La meta del guion (3:1) se formulo sobre ingreso, no sobre margen.
+    # La meta de la propuesta (3:1) se formulo sobre ingreso, no sobre margen.
     campana["efecto_para_retorno_3a1_ingreso_en_referencia"] = biseccion(
         lambda e: _corrida(presupuesto_ref, "valor_en_riesgo", 2, e, 1.20, 42)["roi"] - 3.0, 0.0, 0.95)
 
@@ -516,7 +629,18 @@ def main() -> None:
         "mde": [efecto_minimo_detectable(presupuesto_ref, real.costo_promo_usd, h, f)
                 for h, f in ((0.10, 1.0), (0.20, 1.0), (0.10, 0.25), (0.20, 0.25))],
         "ruido_entre_grupos": ruido_entre_grupos(tuple(range(100, 130))),
+        "calibracion_lista": calibracion_lista(presupuesto_ref, real.costo_promo_usd),
     }
+    # Sensibilidad a la calibracion: el margen de cada politica se escala por la
+    # fraccion que se sostiene con la fuga observada de su lista.
+    cal = validacion["calibracion_lista"]
+    rb = resultados["realista"]["beneficios"]
+    delta_cal = (rb["sistema"]["margen_incremental_usd"] * cal["factor_beneficio_sistema"]
+                 - rb["linea_base"]["margen_incremental_usd"] * cal["factor_beneficio_masiva"])
+    benef_cal = {**rb, "delta_margen_trimestre": delta_cal,
+                 "focalizacion_trimestre": delta_cal * real.adopcion * real.persistencia}
+    cal["delta_margen_corregido"] = delta_cal
+    cal["vpn_realista_corregido"] = indicadores(real, resultados["realista"]["costos"], benef_cal)["vpn"]
 
     salida = {
         "generado_segundos": round(time.time() - inicio, 1),
@@ -531,6 +655,7 @@ def main() -> None:
         "costo_grupo_control_trimestre": costo_control,
         "validacion": validacion,
         "etiquetas_linea_base": {f"{k[0]}_{k[1]}": v for k, v in ETIQUETA_LINEA_BASE.items()},
+        "graficos": datos_graficos(real, presupuesto_ref, semillas, semillas_eq),
     }
     (ARTIFACTS / "costo_beneficio.json").write_text(
         json.dumps(salida, indent=2, ensure_ascii=False, default=float), encoding="utf-8")

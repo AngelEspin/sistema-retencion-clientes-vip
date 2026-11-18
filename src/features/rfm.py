@@ -1,6 +1,6 @@
 """Segmentacion RFM y definicion del segmento VIP.
 
-El guion de la tesis afirma que "entre el 70% y el 80% de los ingresos dependen
+La propuesta de la tesis plantea que "entre el 70% y el 80% de los ingresos dependen
 del 20% de clientes VIP". Este modulo no asume esa cifra: la calcula sobre los
 datos reales y la reporta, porque es la premisa que justifica todo el proyecto.
 
@@ -30,7 +30,7 @@ SALIDA = ROOT / "data" / "processed" / "rfm"
 TICKETS = ROOT / "data" / "processed" / "tickets"
 ARTIFACTS = ROOT / "data" / "artifacts"
 
-# Ventana de inactividad que el negocio considera fuga. Viene del guion.
+# Ventana de inactividad que el negocio considera fuga.
 DIAS_FUGA = 90
 # Proporcion superior de clientes por valor que define el segmento VIP.
 CUANTIL_VIP = 0.80

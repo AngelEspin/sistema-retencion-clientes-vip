@@ -1,7 +1,7 @@
 """API de escenarios de retencion.
 
 Es la pieza con la que interactua el usuario comercial: define una campana
-hipotetica y recibe su impacto estimado. El guion exige respuesta en menos de
+hipotetica y recibe su impacto estimado. Se pide respuesta en menos de
 10 minutos; al resolver la poblacion de forma vectorizada la respuesta es de
 segundos, lo que permite comparar alternativas en una misma reunion.
 

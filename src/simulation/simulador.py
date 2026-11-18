@@ -1,14 +1,12 @@
 """Simulador multiagente de campanas de retencion.
 
-Este es el nucleo del proyecto y la razon de no usar un modelo agregado. Una
-cadena de Markov trata a todos los VIP por igual; aqui cada agente arranca con
-**su** probabilidad real de fuga (la que predijo el modelo de churn), con su
-propio historial de gasto y margen, y con su propia receptividad a promociones.
+Una cadena de Markov trata a todos los VIP por igual; aqui cada agente arranca
+con su propia probabilidad de fuga (la del modelo de churn), su historial de
+gasto y margen, y su receptividad a promociones.
 
-El fenomeno que justifica el enfoque es la **saturacion de promociones**: el
-guion sostiene que un cliente que recibe tres promociones en un mes deja de
-reaccionar. Eso es una no linealidad a nivel individual que ningun modelo
-agregado puede representar, porque el promedio la disuelve.
+Se modela la saturacion de promociones: un cliente que recibe
+tres promociones en un mes deja de reaccionar. Es una no linealidad individual
+que un modelo agregado no representa, porque el promedio la disuelve.
 
 Contrafactual
 -------------
@@ -38,7 +36,7 @@ ARTIFACTS = ROOT / "data" / "artifacts"
 # perfectamente dirigida sobre un cliente receptivo.
 EFECTO_PROMO_BASE = 0.35
 # A partir de esta cantidad de promociones en el mes, el cliente se satura y
-# su respuesta cae a cero. Es la cifra que fija el guion.
+# su respuesta cae a cero. Valor de la propuesta.
 UMBRAL_SATURACION = 3
 # Cada promocion adicional antes del umbral rinde menos que la anterior.
 DECAIMIENTO_MARGINAL = 0.55
@@ -71,7 +69,7 @@ class Escenario:
     pct_control: float = 0.10
     semilla: int = 42
     # Supuestos de comportamiento. Son parametros del escenario para poder
-    # someterlos a sensibilidad; por defecto valen lo que fija el guion.
+    # someterlos a sensibilidad; por defecto valen los valores de la propuesta.
     efecto_promo: float = EFECTO_PROMO_BASE
     umbral_saturacion: int = UMBRAL_SATURACION
 
@@ -128,13 +126,11 @@ def efecto_acumulado(
 ) -> float:
     """Reduccion relativa del riesgo tras recibir ``n_promos`` en el trimestre.
 
-    Modela dos cosas a la vez:
-      1. **Rendimientos marginales decrecientes** -- la segunda promocion
-         convence menos que la primera.
-      2. **Saturacion dura** -- alcanzado el umbral, el cliente deja de
-         responder por completo y el efecto colapsa a cero. No se queda en el
-         maximo: se pierde, que es lo que observa el negocio cuando satura a
-         su base.
+    Combina dos efectos:
+      1. Rendimientos decrecientes: la segunda promocion convence menos que
+         la primera.
+      2. Saturacion: al llegar al umbral el cliente deja de responder y el
+         efecto cae a cero, no se queda en el maximo.
     """
     if n_promos <= 0:
         return 0.0
@@ -540,7 +536,7 @@ def main() -> None:
         )
 
     # --- Cuanto cuesta el objetivo de -15% de fuga? -------------------------
-    # El guion promete reducir la fuga trimestral de VIP en un 15%. Con la
+    # La propuesta plantea reducir la fuga trimestral de VIP en un 15%. Con la
     # poblacion real (538k VIP) un presupuesto de 5.000 USD alcanza a menos del
     # 1% de ellos, asi que conviene medir que presupuesto haria falta de verdad
     # en lugar de dar el objetivo por cumplido.

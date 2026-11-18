@@ -14,7 +14,6 @@ Uso:
 Salidas:
     web/index.html                     documento completo
     docs/index.html                    la misma pagina, publicada por GitHub Pages
-    web/simulador_retencion.html       fragmento sin <html>/<head>/<body>, para publicar como artefacto
     data/artifacts/grilla_escenarios.json   cache de la grilla
 """
 
@@ -22,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import time
 from itertools import product
@@ -100,14 +98,7 @@ def calcular_grilla(forzar: bool = False) -> dict:
     return grilla
 
 
-def _bloque(html: str, etiqueta: str) -> str:
-    hallado = re.search(rf"<{etiqueta}[^>]*>(.*?)</{etiqueta}>", html, flags=re.S | re.I)
-    if not hallado:
-        raise SystemExit(f"dashboard.html no tiene <{etiqueta}>")
-    return hallado.group(1)
-
-
-def escribir_pagina(grilla: dict) -> tuple[Path, Path]:
+def escribir_pagina(grilla: dict) -> Path:
     html = DASHBOARD.read_text(encoding="utf-8")
     if MARCA not in html:
         raise SystemExit(f"dashboard.html no tiene la marca {MARCA}")
@@ -125,14 +116,7 @@ def escribir_pagina(grilla: dict) -> tuple[Path, Path]:
     PAGES.mkdir(exist_ok=True)
     (PAGES / "index.html").write_text(completo, encoding="utf-8")
 
-    # El artefacto recibe solo el contenido: la plataforma pone el esqueleto.
-    cabeza = _bloque(completo, "head")
-    titulo = re.search(r"<title>.*?</title>", cabeza, flags=re.S).group(0)
-    metas = "".join(re.findall(r'<meta name="claude:[^>]*>', cabeza))
-    estilos = "".join(re.findall(r"<style>.*?</style>", cabeza, flags=re.S))
-    fragmento = SALIDA / "simulador_retencion.html"
-    fragmento.write_text(f"{titulo}\n{metas}\n{estilos}\n{_bloque(completo, 'body')}", encoding="utf-8")
-    return pagina, fragmento
+    return pagina
 
 
 def main() -> None:
@@ -144,9 +128,8 @@ def main() -> None:
     grilla = calcular_grilla(forzar=args.recalcular)
     if args.solo_grilla:
         return
-    pagina, fragmento = escribir_pagina(grilla)
-    for ruta in (pagina, fragmento):
-        print(f"Escrito {ruta.relative_to(ROOT)} ({ruta.stat().st_size / 1e6:.2f} MB)")
+    pagina = escribir_pagina(grilla)
+    print(f"Escrito {pagina.relative_to(ROOT)} ({pagina.stat().st_size / 1e6:.2f} MB)")
 
 
 if __name__ == "__main__":
